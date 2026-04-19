@@ -1,0 +1,11 @@
+node_modules/
+.env
+__pycache__/
+venv/
+.expo/
+dist/
+build/
+*.pkl
+*.pyc
+.DS_Store
+serviceAccountKey.json
