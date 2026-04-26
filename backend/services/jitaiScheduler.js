@@ -56,10 +56,12 @@ cron.schedule('0 * * * *', async () => {
           jitaiLogs: jitai
         }, { timeout: 10000 }).catch(() => ({ data: { dropoutProbability: 0.3, willDropOutIn7d: false, topFactors: [] } }))
 
+        const dropoutProbability = dropoutRes.data.dropoutProbability || 0
+
         const now = new Date()
         const jitaiPayload = {
           uid,
-          riskScore:           user.riskScore           || 0.3,
+          riskScore:           Math.max(user.riskScore || 0.3, dropoutProbability),
           cycleVulnerability:  cycle.vulnerabilityScore  || 0,
           stepsDeviationScore: passive.stepsDeviationScore || 0.3,
           crisisProbability:   mood.nlpResults?.crisisProbability || 0,
@@ -137,12 +139,26 @@ cron.schedule('0 0 * * *', async () => {
           passiveLogs:            passive
         }, { timeout: 12000 })
 
-        const { riskScore, riskLevel, topFactors } = riskRes.data
+        const dropoutRes = await axios.post(`${AI_URL}/api/dropout/predict`, {
+          uid,
+          daysSinceLastCheckin: daysSince(moods[0]?.createdAt || moods[0]?.date || moods[0]?.timestamp || user.createdAt),
+          notificationOpenRateTrend: user.notificationOpenRateTrend ?? 0.5,
+          sessionLengthTrend: user.sessionLengthTrend ?? 0.5,
+          jitaiResponseRate: user.jitaiResponseRate ?? 0.5,
+          appOpenFrequency7dTrend: user.appOpenFrequency7dTrend ?? 0.5,
+          passiveLogs: passive,
+          moodLogs: moods,
+          jitaiLogs: []
+        }, { timeout: 10000 }).catch(() => ({ data: { dropoutProbability: 0.3, willDropOutIn7d: false, topFactors: [] } }))
 
-        await db.collection('users').doc(uid).update({ riskScore, riskLevel, updatedAt: new Date().toISOString() })
+        const { riskScore, riskLevel, topFactors } = riskRes.data
+        const dropoutProbability = dropoutRes.data.dropoutProbability || 0
+        const effectiveRiskScore = Math.max(riskScore || 0, dropoutProbability)
+
+        await db.collection('users').doc(uid).update({ riskScore: effectiveRiskScore, riskLevel, updatedAt: new Date().toISOString() })
         await db.collection('users').doc(uid).update({
-          dropoutProbability: dropoutRes.data.dropoutProbability || 0,
-          dropoutRiskLevel: (dropoutRes.data.dropoutProbability || 0) > 0.7 ? 'high' : 'low',
+          dropoutProbability,
+          dropoutRiskLevel: dropoutProbability > 0.7 ? 'high' : 'low',
           dropoutTopFactors: dropoutRes.data.topFactors || [],
           updatedAt: new Date().toISOString()
         })
@@ -165,7 +181,7 @@ cron.schedule('0 0 * * *', async () => {
           }
         }
 
-        if ((dropoutRes.data.dropoutProbability || 0) > 0.7 && user.assignedClinician) {
+        if (dropoutProbability > 0.7 && user.assignedClinician) {
           const existingDropout = await db.collection('clinicianAlerts')
             .where('patientUid', '==', uid)
             .where('resolved', '==', false)
@@ -176,7 +192,7 @@ cron.schedule('0 0 * * *', async () => {
             await db.collection('clinicianAlerts').add({
               patientUid: uid, clinicianUid: user.assignedClinician,
               type: 'dropout_risk', riskScore: user.riskScore || 0,
-              dropoutProbability: dropoutRes.data.dropoutProbability || 0,
+              dropoutProbability,
               crisisProb: 0,
               triggerFactors: dropoutRes.data.topFactors || ['Disengagement signals detected'],
               resolved: false, resolvedAt: null,

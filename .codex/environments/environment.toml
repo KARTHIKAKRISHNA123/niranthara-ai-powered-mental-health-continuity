@@ -61,3 +61,18 @@ rm -rf ai-service/venv
 name = "Backend"
 icon = "tool"
 command = "cd backend && node index.js"
+
+[[actions]]
+name = "▶️ AI Service"
+icon = "tool"
+command = "cd ai-service && source venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+[[actions]]
+name = "▶️ Dashboard"
+icon = "tool"
+command = "cd dashboard && npm run dev"
+
+[[actions]]
+name = "Mobile"
+icon = "tool"
+command = "cd mobile-app && npm start"
