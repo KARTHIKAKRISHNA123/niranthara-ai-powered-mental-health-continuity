@@ -1,0 +1,26 @@
+{
+  "accuracy": 0.9969,
+  "crisis_recall": 0.9828,
+  "total_samples": 1600,
+  "features": [
+    "mood_score_avg_7d",
+    "sleep_hours_avg_7d",
+    "steps_deviation_score",
+    "anxiety_level_avg_7d",
+    "cycle_vulnerability_score",
+    "gps_entropy_deviation_score",
+    "journal_sentiment_score",
+    "emotion_distress_score",
+    "crisis_probability",
+    "app_engagement_score",
+    "missed_checkins_count",
+    "mood_sentiment_divergence",
+    "screen_time_night_ratio",
+    "social_connectivity_score"
+  ],
+  "n_estimators": 1000,
+  "best_iteration": 652,
+  "cpu_threads": 6,
+  "tree_method": "hist",
+  "trained_at": "2026-04-26T13:25:38.974346"
+}

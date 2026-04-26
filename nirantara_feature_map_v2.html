@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nirantara — Feature Map v2.0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
+
+  :root {
+    --rose:       #C97B84;
+    --rose-light: #F2D9DC;
+    --rose-dark:  #8B4A52;
+    --lavender:   #9B8EC4;
+    --lav-light:  #E8E4F4;
+    --sage:       #7BA68A;
+    --sage-light: #D6EAD9;
+    --cream:      #FBF7F2;
+    --warm-white: #FEFCFA;
+    --charcoal:   #2C2826;
+    --warm-gray:  #8A8076;
+    --soft-gray:  #C8C0B8;
+    --alert:      #E8634A;
+    --warning:    #F0A830;
+    --border:     rgba(44,40,38,0.1);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--cream);
+    color: var(--charcoal);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 48px 32px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  .header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 52px;
+    letter-spacing: 0.04em;
+    color: var(--rose-dark);
+    line-height: 1.1;
+  }
+  .header .sub {
+    font-size: 13px;
+    color: var(--warm-gray);
+    margin-top: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .header .tagline {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--warm-gray);
+    margin-top: 4px;
+  }
+  .version-pill {
+    display: inline-block;
+    background: var(--rose-light);
+    color: var(--rose-dark);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-top: 12px;
+    text-transform: uppercase;
+  }
+
+  /* ── ARCHITECTURE PRINCIPLE BANNER ── */
+  .principle-banner {
+    background: var(--charcoal);
+    color: var(--warm-white);
+    border-radius: 16px;
+    padding: 20px 28px;
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .principle-banner .icon { font-size: 22px; flex-shrink: 0; }
+  .principle-banner strong {
+    font-weight: 500;
+    color: var(--rose-light);
+  }
+
+  /* ── SECTION TITLE ── */
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 28px;
+    color: var(--charcoal);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title span {
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    color: var(--warm-gray);
+    margin-left: 12px;
+  }
+
+  /* ── ML MODELS TABLE ── */
+  .ml-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .ml-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ml-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .ml-card.crisis::before   { background: var(--alert); }
+  .ml-card.sentiment::before { background: var(--lavender); }
+  .ml-card.emotion::before  { background: var(--warning); }
+  .ml-card.cycle::before    { background: var(--rose); }
+  .ml-card.risk::before     { background: var(--sage); }
+  .ml-card.jitai::before    { background: var(--rose-dark); }
+  .ml-card.chat::before     { background: var(--lavender); }
+
+  .ml-card .model-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--warm-gray);
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .ml-card .task {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .ml-card .complexity {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+  .complexity.hard   { background:#FDEAE6; color:var(--alert); }
+  .complexity.medium { background:#FDF5E6; color:#B07B20; }
+  .complexity.easy   { background:var(--sage-light); color:var(--sage); }
+
+  .ml-card .time-badge {
+    font-size: 11px;
+    color: var(--warm-gray);
+    margin-top: 10px;
+  }
+  .ml-card .what {
+    font-size: 12px;
+    color: var(--warm-gray);
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+  .replaces {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .replaces .bad { color: var(--alert); text-decoration: line-through; }
+  .replaces .good { color: var(--sage); font-weight: 500; }
+
+  /* ── FEATURE BLOCKS ── */
+  .features-outer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+  .feature-block {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .feature-block-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .feature-block-header .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .feature-block-header h3 {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .feature-block-header .count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--warm-gray);
+  }
+  .feature-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .feature-item:last-child { border-bottom: none; }
+  .feature-item .fi-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .feature-item .fi-name { font-size: 13px; font-weight: 500; }
+  .feature-item .fi-desc { font-size: 12px; color: var(--warm-gray); margin-top: 2px; }
+  .feature-item .fi-tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .tag-ml   { background: var(--lav-light); color: var(--lavender); }
+  .tag-nlp  { background: var(--rose-light); color: var(--rose-dark); }
+  .tag-pass { background: var(--sage-light); color: var(--sage); }
+  .tag-ui   { background: #FDF5E6; color: #B07B20; }
+  .tag-db   { background: var(--soft-gray); color: var(--charcoal); opacity:0.8; }
+
+  /* ── 8 TRIGGERS GRID ── */
+  .triggers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 48px;
+  }
+  .trigger-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+  }
+  .trigger-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--soft-gray);
+    margin-bottom: 8px;
+  }
+  .trigger-name {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .trigger-method {
+    font-size: 11px;
+    color: var(--lavender);
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .trigger-passive {
+    font-size: 11px;
+    color: var(--sage);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .trigger-active {
+    font-size: 11px;
+    color: var(--warning);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ── SPRINT TABLE ── */
+  .sprint-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 48px;
+    background: var(--warm-white);
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .sprint-table th {
+    background: var(--charcoal);
+    color: var(--warm-white);
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .sprint-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 12px;
+  }
+  .sprint-table tr:last-child td { border-bottom: none; }
+  .sprint-table tr:nth-child(even) td { background: rgba(251,247,242,0.6); }
+  .day-badge {
+    display: inline-block;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--rose-light);
+    color: var(--rose-dark);
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .day-badge.critical { background: var(--charcoal); color: var(--warm-white); }
+  .complexity-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  .c-hard   { background: var(--alert); }
+  .c-medium { background: var(--warning); }
+  .c-easy   { background: var(--sage); }
+
+  /* ── PERSONA MAP ── */
+  .persona-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .persona-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .persona-header {
+    padding: 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .persona-emoji { font-size: 28px; display: block; margin-bottom: 6px; }
+  .persona-name  { font-weight: 500; font-size: 14px; }
+  .persona-status {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+  .status-active { background: var(--sage-light); color: var(--sage); }
+  .status-ready  { background: var(--lav-light); color: var(--lavender); }
+  .persona-feature {
+    padding: 8px 14px;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .persona-feature:last-child { border-bottom: none; }
+  .pf-on  { color: var(--sage); }
+  .pf-off { color: var(--soft-gray); }
+
+  /* ── DATA FLOW ── */
+  .flow-container {
+    background: var(--charcoal);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 48px;
+    color: var(--warm-white);
+  }
+  .flow-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--rose-light);
+    margin-bottom: 24px;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .flow-node {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .flow-node.nlp    { border-color: var(--lavender); color: var(--lav-light); }
+  .flow-node.ml     { border-color: var(--sage); color: var(--sage-light); }
+  .flow-node.llm    { border-color: var(--rose); color: var(--rose-light); }
+  .flow-node.output { border-color: var(--warning); color: #FDE68A; }
+  .flow-arrow {
+    font-size: 16px;
+    color: rgba(255,255,255,0.3);
+    margin: 0 8px;
+  }
+  .flow-split {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* ── RISK SCALE ── */
+  .risk-scale {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+  .risk-level-card {
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+  .risk-level-card .rl-score { font-size: 12px; font-weight: 500; opacity: 0.9; }
+  .risk-level-card .rl-label {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 400;
+    display: block;
+    margin: 6px 0;
+  }
+  .risk-level-card .rl-action { font-size: 11px; opacity: 0.85; }
+  .rl-low    { background: var(--sage-light); color: #2D5F3B; }
+  .rl-mod    { background: #FDF5E6; color: #8B5B0A; }
+  .rl-high   { background: #FDEAE6; color: #8B2F1A; }
+  .rl-crisis { background: var(--charcoal); color: var(--warm-white); }
+
+  /* ── SECURITY / COMPLIANCE ── */
+  .compliance-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 48px;
+  }
+  .compliance-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .compliance-card h4 { font-size: 13px; font-weight: 500; margin-bottom: 10px; }
+  .compliance-item {
+    font-size: 12px;
+    color: var(--warm-gray);
+    padding: 4px 0;
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compliance-item:last-child { border-bottom: none; }
+  .compliance-item::before { content: '✓'; color: var(--sage); font-weight: 500; flex-shrink:0; }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center;
+    color: var(--warm-gray);
+    font-size: 12px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .footer strong { color: var(--rose-dark); }
+
+  @media print {
+    body { padding: 24px 20px; font-size: 11px; }
+    .ml-grid { grid-template-columns: repeat(3,1fr); }
+    .triggers-grid { grid-template-columns: repeat(4,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Nirantara</h1>
+  <div class="tagline">உங்கள் மனம், எங்கள் அக்கறை</div>
+  <div class="sub">Feature Map — ML-First Architecture</div>
+  <div class="version-pill">v2.0.0 · April 2026 · Anna University Regional Campus, Tirunelveli</div>
+</div>
+
+<!-- PRINCIPLE BANNER -->
+<div class="principle-banner">
+  <span class="icon">⚡</span>
+  <div>
+    <strong>Zero hardcoding. Zero keyword matching. Zero fixed thresholds.</strong>
+    Every crisis detection, sentiment analysis, cycle prediction, risk score, and JITAI trigger is driven by trained ML models or NLP classifiers. Rule-based fallbacks exist only for network failure and are temporary.
+  </div>
+</div>
+
+<!-- ML MODELS -->
+<div class="section-title">ML/NLP Models Required <span>7 models total — all run locally on RTX 3050 + 16GB RAM</span></div>
+<div class="ml-grid">
+
+  <div class="ml-card crisis">
+    <div class="model-name">mental/mental-roberta-base</div>
+    <div class="task">Crisis Detection</div>
+    <span class="complexity hard">● High Complexity</span>
+    <div class="time-badge">⏱ Download: ~1.5GB · First run: 5–10 min warm-up</div>
+    <div class="what">Fine-tuned on mental health text. Returns crisis_probability: 0–1. Translates Tamil/Tanglish via Sarvam before inference.</div>
+    <div class="replaces">
+      <div class="bad">keyword list: "suicide", "kill myself"</div>
+      <div class="good">→ NLP probability: context-aware scoring</div>
+    </div>
+  </div>
+
+  <div class="ml-card sentiment">
+    <div class="model-name">ai4bharat/indic-bert</div>
+    <div class="task">Sentiment Analysis</div>
+    <span class="complexity medium">● Medium Complexity</span>
+    <div class="time-badge">⏱ Download: ~500MB · Fine-tune: optional</div>
+    <div class="what">Trained on Indian languages including Tamil, Tanglish, code-mixed. Understands emotional context in Indian linguistic patterns.</div>
+    <div class="replaces">
+      <div class="bad">keyword counting: neg_count > 2</div>
+      <div class="good">→ Semantic score: understands meaning</div>
+    </div>
+  </div>
+
+  <div class="ml-card emotion">
+    <div class="model-name">j-hartmann/emotion-english-distilroberta-base</div>
+    <div class="task">Emotion Detection</div>
+    <span class="complexity medium">● Medium Complexity</span>
+    <div class="time-badge">⏱ Download: ~300MB · Ready to use</div>
+    <div class="what">7-class emotion: joy, sadness, anger, fear, surprise, disgust, neutral. Tamil/Tanglish translated first via Sarvam.</div>
+    <div class="replaces">
+      <div class="bad">not detected previously</div>
+      <div class="good">→ 7-class emotion with confidence score</div>
+    </div>
+  </div>
+
+  <div class="ml-card cycle">
+    <div class="model-name">Personalized LSTM (PyTorch, custom)</div>
+    <div class="task">Cycle Phase Prediction</div>
+    <span class="complexity hard">● High Complexity</span>
+    <div class="time-badge">⏱ Train per user: ~30 sec · Min 3 cycles needed</div>
+    <div class="what">Trained on each woman's own period history. Outputs vulnerability_score: 0–1. Handles PCOS (35–90 day cycles), postpartum, perimenopause. Population fallback before 3 cycles.</div>
+    <div class="replaces">
+      <div class="bad">if cycle_day >= 22: high_risk = True</div>
+      <div class="good">→ Personalized curve: her pattern, her window</div>
+    </div>
+  </div>
+
+  <div class="ml-card risk">
+    <div class="model-name">XGBoost (14 features, custom trained)</div>
+    <div class="task">Risk Score Prediction</div>
+    <span class="complexity hard">● High Complexity</span>
+    <div class="time-badge">⏱ Train once: ~5 min on RTX 3050 (gpu_hist) · Target: 85%+ accuracy</div>
+    <div class="what">14-feature multi-signal fusion. SHAP Shapley values for explainability. Top 3 human-readable factors per prediction. Classes: low / moderate / high / crisis.</div>
+    <div class="replaces">
+      <div class="bad">risk += 0.35 if mood < 2 (arithmetic)</div>
+      <div class="good">→ XGBoost: trained on PHQ-9 + DEPTWEET</div>
+    </div>
+  </div>
+
+  <div class="ml-card jitai">
+    <div class="model-name">Personalized XGBoost (custom, per user)</div>
+    <div class="task">JITAI Receptivity</div>
+    <span class="complexity hard">● High Complexity</span>
+    <div class="time-badge">⏱ Train per user: ~5 sec · Min 5 responses needed</div>
+    <div class="what">Learns when THIS user responds positively to interventions. Features: time of day, day of week, risk score, cycle vulnerability, steps deviation. Evening-biased population fallback.</div>
+    <div class="replaces">
+      <div class="bad">if hour == 19 and mood < 2: send_notification</div>
+      <div class="good">→ Per-user receptivity model from response history</div>
+    </div>
+  </div>
+
+  <div class="ml-card chat" style="grid-column: span 3;">
+    <div style="display:flex;gap:24px;align-items:flex-start;">
+      <div style="flex:1;">
+        <div class="model-name">Gemma 4B via Ollama (CUDA · RTX 3050)</div>
+        <div class="task">Context-Aware Generative Chat</div>
+        <span class="complexity medium">● Medium Complexity</span>
+        <div class="time-badge">⏱ Download: ~4GB · Response: 2–5 sec on RTX 3050 · Fully local</div>
+        <div class="what">Generates warm, contextually appropriate Tamil/Tanglish/English responses. Receives cycle phase, mood score, risk level, detected emotion as context. Never formulaic.</div>
+      </div>
+      <div style="flex:1;">
+        <div class="replaces">
+          <div class="bad">template: "I understand you're feeling down. Try this breathing exercise."</div>
+          <div class="good">→ Gemma generates unique response every time, culturally sensitive, language-matched</div>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:var(--lav-light);border-radius:10px;">
+          <div style="font-size:11px;font-weight:500;color:var(--lavender);margin-bottom:4px;">RTX 3050 + 16GB RAM — Compatibility</div>
+          <div style="font-size:11px;color:var(--charcoal);">✓ Gemma 4B runs comfortably · CUDA accelerated · ~2–5 sec response · All other models fit in VRAM · No cloud needed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 8 DEPRESSION TRIGGERS -->
+<div class="section-title">8 Depression Triggers <span>All ML-detected — no keyword matching, no fixed thresholds</span></div>
+<div class="triggers-grid">
+
+  <div class="trigger-card">
+    <div class="trigger-num">01</div>
+    <div class="trigger-name">Hormonal Vulnerability</div>
+    <div class="trigger-method">Personalized LSTM</div>
+    <div class="trigger-passive">⚫ Fully passive after period log</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">02</div>
+    <div class="trigger-name">Sleep Disruption</div>
+    <div class="trigger-method">Personal baseline deviation</div>
+    <div class="trigger-passive">⚫ Phone-down proxy passive</div>
+    <div class="trigger-active">◯ Optional: sleep hours input</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">03</div>
+    <div class="trigger-name">Physical Inactivity</div>
+    <div class="trigger-method">Personal baseline deviation</div>
+    <div class="trigger-passive">⚫ expo-sensors pedometer passive</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">04</div>
+    <div class="trigger-name">Social Withdrawal</div>
+    <div class="trigger-method">GPS entropy + engagement ML</div>
+    <div class="trigger-passive">⚫ GPS entropy (no coordinates)</div>
+    <div class="trigger-passive">⚫ Notif response time passive</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">05</div>
+    <div class="trigger-name">Chronic Stress</div>
+    <div class="trigger-method">IndicBERT semantic NLP</div>
+    <div class="trigger-active">◯ Journal text (optional)</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">06</div>
+    <div class="trigger-name">Postpartum / Caregiving</div>
+    <div class="trigger-method">Profile-weighted XGBoost</div>
+    <div class="trigger-passive">⚫ Condition flag from profile</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">07</div>
+    <div class="trigger-name">Emotional Suppression</div>
+    <div class="trigger-method">Mood–Sentiment Divergence</div>
+    <div class="trigger-passive">⚫ Computed automatically</div>
+    <div style="font-size:10px;color:var(--rose-dark);margin-top:6px;font-weight:500;">★ Unique to Nirantara</div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="trigger-num">08</div>
+    <div class="trigger-name">Life Events / Grief</div>
+    <div class="trigger-method">IndicBERT event classification</div>
+    <div class="trigger-active">◯ Journal text (optional)</div>
+  </div>
+
+</div>
+
+<!-- FEATURE BLOCKS -->
+<div class="section-title">Feature Map by Module <span>Implementation view</span></div>
+<div class="features-outer">
+
+  <!-- Mobile App -->
+  <div class="feature-block">
+    <div class="feature-block-header">
+      <div class="dot" style="background:var(--rose)"></div>
+      <h3>Mobile App — React Native + Expo</h3>
+      <span class="count">14 screens</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🔐</span>
+      <div><div class="fi-name">Auth — Phone OTP + Google + Biometric</div><div class="fi-desc">Firebase Auth · expo-local-authentication</div></div>
+      <span class="fi-tag tag-ui">UI</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🧭</span>
+      <div><div class="fi-name">Persona Select Onboarding</div><div class="fi-desc">Women / Elderly / Disabled / General — single config switch</div></div>
+      <span class="fi-tag tag-ui">UI</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🏠</span>
+      <div><div class="fi-name">Home Dashboard</div><div class="fi-desc">Mood ring (XGBoost risk color), cycle badge, steps vs baseline, sleep vs baseline</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">💬</span>
+      <div><div class="fi-name">Tamil AI Chat</div><div class="fi-desc">Gemma 4B · Tamil/Tanglish/English · Voice input (Sarvam STT)</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📝</span>
+      <div><div class="fi-name">Mood Check-In</div><div class="fi-desc">5 face buttons + journal + sleep + symptoms · Triggers full NLP pipeline</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🌙</span>
+      <div><div class="fi-name">Cycle Tracker</div><div class="fi-desc">Wheel visualization · ML-predicted phase · Personalized vulnerability window</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📊</span>
+      <div><div class="fi-name">Insights Screen</div><div class="fi-desc">30-day mood chart · Risk trend · SHAP top factors as readable cards</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🫁</span>
+      <div><div class="fi-name">Intervention Screens</div><div class="fi-desc">Breathing · CBT reframe · Grounding 5-4-3-2-1 · Cycle-aware support</div></div>
+      <span class="fi-tag tag-ui">UI</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📶</span>
+      <div><div class="fi-name">Offline-First Architecture</div><div class="fi-desc">AsyncStorage queue · Auto-sync on reconnect · Offline banner indicator</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📍</span>
+      <div><div class="fi-name">GPS Entropy (Privacy-First)</div><div class="fi-desc">Only entropy score 0–10 sent. Raw coordinates never stored anywhere.</div></div>
+      <span class="fi-tag tag-pass">Passive</span>
+    </div>
+  </div>
+
+  <!-- Backend -->
+  <div class="feature-block">
+    <div class="feature-block-header">
+      <div class="dot" style="background:var(--sage)"></div>
+      <h3>Backend — Node.js + Express</h3>
+      <span class="count">9 route files</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🔑</span>
+      <div><div class="fi-name">Auth Routes + JWT Middleware</div><div class="fi-desc">Firebase Admin · verifyToken · DPDP delete + export</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🧠</span>
+      <div><div class="fi-name">Mood Log → Full NLP Pipeline</div><div class="fi-desc">Encrypts journal → parallel NLP → divergence → LSTM → XGBoost → Firestore</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">⏰</span>
+      <div><div class="fi-name">JITAI Scheduler (node-cron)</div><div class="fi-desc">Hourly evaluation · Personalized ML model · FCM push on trigger</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🔄</span>
+      <div><div class="fi-name">Cycle Routes + LSTM Retrain</div><div class="fi-desc">Period log → retrain personalized LSTM for this user automatically</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📡</span>
+      <div><div class="fi-name">Passive Monitoring Ingestion</div><div class="fi-desc">GPS entropy · steps · sleep proxy · baseline deviation computation</div></div>
+      <span class="fi-tag tag-pass">Passive</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🔐</span>
+      <div><div class="fi-name">AES-256-GCM Encryption</div><div class="fi-desc">All journal text encrypted before Firestore storage</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🏥</span>
+      <div><div class="fi-name">Clinician Routes</div><div class="fi-desc">Patients by risk · Gemma summary · Manual flag · Alert resolution</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📦</span>
+      <div><div class="fi-name">Offline Sync Endpoint</div><div class="fi-desc">Batch sync from device queue · Deduplication via offlineSyncId</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+  </div>
+
+  <!-- AI Service -->
+  <div class="feature-block">
+    <div class="feature-block-header">
+      <div class="dot" style="background:var(--lavender)"></div>
+      <h3>AI Service — Python + FastAPI</h3>
+      <span class="count">7 routers</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🚨</span>
+      <div><div class="fi-name">Crisis Classifier (mental-roberta)</div><div class="fi-desc">Probability 0–1 · Tamil translation first · Three escalation tiers</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">💭</span>
+      <div><div class="fi-name">Sentiment Analysis (IndicBERT)</div><div class="fi-desc">Tamil/Tanglish/English · Returns score + label + language detected</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">😔</span>
+      <div><div class="fi-name">Emotion Detection (distilroberta)</div><div class="fi-desc">7 classes · Tamil translated first · isDistress flag</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🌙</span>
+      <div><div class="fi-name">Cycle LSTM (Personalized)</div><div class="fi-desc">Trains on her history · vulnerability_score 0–1 · Handles irregular cycles</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📈</span>
+      <div><div class="fi-name">XGBoost Risk Prediction</div><div class="fi-desc">14 features · SHAP explainability · Top 3 human-readable factors</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">⚡</span>
+      <div><div class="fi-name">JITAI Personalized Model</div><div class="fi-desc">Learns user receptivity from response history · Population fallback</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🤖</span>
+      <div><div class="fi-name">Gemma 4B Chat (Ollama CUDA)</div><div class="fi-desc">Context injection: cycle + mood + emotion + risk · Language-matched response</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+  </div>
+
+  <!-- Clinician Dashboard -->
+  <div class="feature-block">
+    <div class="feature-block-header">
+      <div class="dot" style="background:var(--warning)"></div>
+      <h3>Clinician Dashboard — React.js + Vite</h3>
+      <span class="count">4 pages</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📋</span>
+      <div><div class="fi-name">Patient List — Sorted by XGBoost Risk</div><div class="fi-desc">Real risk_score sort · Crisis banner · NLP signal badges per patient</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">👤</span>
+      <div><div class="fi-name">Patient Detail Page</div><div class="fi-desc">30-day risk chart · Cycle overlay · Sentiment trend · SHAP factors cards</div></div>
+      <span class="fi-tag tag-ml">ML</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📝</span>
+      <div><div class="fi-name">Gemma Narrative Summary</div><div class="fi-desc">AI-generated 2–3 sentence clinical summary updated daily</div></div>
+      <span class="fi-tag tag-nlp">NLP</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🔴</span>
+      <div><div class="fi-name">Real-Time Crisis Alerts</div><div class="fi-desc">Firestore onSnapshot · Auto-alert when crisis_prob > 0.85 · Sound alert</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">📄</span>
+      <div><div class="fi-name">PDF Report Export</div><div class="fi-desc">jsPDF · Patient summary + risk history + SHAP factors</div></div>
+      <span class="fi-tag tag-ui">UI</span>
+    </div>
+    <div class="feature-item">
+      <span class="fi-icon">🚩</span>
+      <div><div class="fi-name">Manual Flag + Alert Resolution</div><div class="fi-desc">Clinician can flag any patient · Resolve alerts with timestamp</div></div>
+      <span class="fi-tag tag-db">DB</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- PERSONAS -->
+<div class="section-title">Persona Architecture <span>Single config — zero rebuild for new personas</span></div>
+<div class="persona-grid">
+  <div class="persona-card">
+    <div class="persona-header">
+      <span class="persona-emoji">👩</span>
+      <div class="persona-name">Women</div>
+      <span class="persona-status status-active">Building Now</span>
+    </div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Cycle LSTM active</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Hormonal risk boost</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> All 8 triggers</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> 44px tap targets</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Crisis + JITAI NLP</div>
+  </div>
+  <div class="persona-card">
+    <div class="persona-header">
+      <span class="persona-emoji">👴</span>
+      <div class="persona-name">Elderly</div>
+      <span class="persona-status status-ready">Config Ready</span>
+    </div>
+    <div class="persona-feature"><span class="pf-off">–</span> Cycle LSTM off</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Family view on</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> 72px tap targets</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Voice-first mode</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Crisis + JITAI NLP</div>
+  </div>
+  <div class="persona-card">
+    <div class="persona-header">
+      <span class="persona-emoji">♿</span>
+      <div class="persona-name">Disabled</div>
+      <span class="persona-status status-ready">Config Ready</span>
+    </div>
+    <div class="persona-feature"><span class="pf-off">–</span> Cycle LSTM off</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Voice-only input</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> 64px tap targets</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Screen reader full</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Crisis + JITAI NLP</div>
+  </div>
+  <div class="persona-card">
+    <div class="persona-header">
+      <span class="persona-emoji">🧑</span>
+      <div class="persona-name">General Adult</div>
+      <span class="persona-status status-ready">Config Ready</span>
+    </div>
+    <div class="persona-feature"><span class="pf-off">–</span> Cycle LSTM off</div>
+    <div class="persona-feature"><span class="pf-off">–</span> No hormonal boost</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> 7 triggers (no T1)</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Standard UI</div>
+    <div class="persona-feature"><span class="pf-on">✓</span> Crisis + JITAI NLP</div>
+  </div>
+</div>
+
+<!-- DATA FLOW -->
+<div class="flow-container">
+  <div class="flow-title">Complete ML Signal Flow — From User Input to Clinical Action</div>
+  <div class="flow-row">
+    <div class="flow-node">User types / speaks</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node nlp">Sarvam STT (if voice)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node nlp">Language detect (ta/en/tanglish)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node nlp">IndicBERT sentiment</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node nlp">distilroberta emotion</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node nlp">mental-roberta crisis prob</div>
+  </div>
+  <div style="height:12px"></div>
+  <div class="flow-row">
+    <div class="flow-node">All NLP signals</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node ml">Personalized LSTM → cycle_vulnerability</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node ml">Personal baseline → 8 deviation scores</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node ml">XGBoost 14-feature fusion → risk_score 0–1</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node ml">SHAP → top_3_factors</div>
+  </div>
+  <div style="height:12px"></div>
+  <div class="flow-row">
+    <div class="flow-node ml">risk_score</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node ml">Personalized JITAI model → receptivity_score</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node output">FCM push → user</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node output">Clinician alert if risk > 0.7</div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-node llm">Gemma 4B → contextual response</div>
+  </div>
+</div>
+
+<!-- RISK SCALE -->
+<div class="section-title">Risk Level Scale <span>XGBoost output → clinical action</span></div>
+<div class="risk-scale">
+  <div class="risk-level-card rl-low">
+    <div class="rl-score">Score: 0.0 – 0.29</div>
+    <span class="rl-label">Low</span>
+    <div class="rl-action">Standard passive monitoring. No JITAI unless engagement drops.</div>
+  </div>
+  <div class="risk-level-card rl-mod">
+    <div class="rl-score">Score: 0.30 – 0.59</div>
+    <span class="rl-label">Moderate</span>
+    <div class="rl-action">Increased JITAI frequency. Gentle nudges. No clinician alert.</div>
+  </div>
+  <div class="risk-level-card rl-high">
+    <div class="rl-score">Score: 0.60 – 0.79</div>
+    <span class="rl-label">High</span>
+    <div class="rl-action">Clinician alert triggered. CBT/grounding interventions. Daily monitoring.</div>
+  </div>
+  <div class="risk-level-card rl-crisis">
+    <div class="rl-score">Score: 0.80 – 1.00</div>
+    <span class="rl-label">Crisis</span>
+    <div class="rl-action">Immediate escalation. Zero cooldown. NIMHANS helpline. Clinician instant alert.</div>
+  </div>
+</div>
+
+<!-- COMPLIANCE -->
+<div class="section-title">Security, Privacy and Compliance</div>
+<div class="compliance-row">
+  <div class="compliance-card">
+    <h4>DPDP Act 2023</h4>
+    <div class="compliance-item">Explicit consent toggles on sign-up</div>
+    <div class="compliance-item">Purpose documented per data type</div>
+    <div class="compliance-item">GPS entropy only — never coordinates</div>
+    <div class="compliance-item">Right to delete all data</div>
+    <div class="compliance-item">Right to export all data</div>
+  </div>
+  <div class="compliance-card">
+    <h4>Encryption and Security</h4>
+    <div class="compliance-item">AES-256-GCM on all journal text</div>
+    <div class="compliance-item">Firebase JWT on every route</div>
+    <div class="compliance-item">Firestore rules: own data only</div>
+    <div class="compliance-item">serviceAccountKey.json gitignored</div>
+    <div class="compliance-item">Rate limiting via express-rate-limit</div>
+  </div>
+  <div class="compliance-card">
+    <h4>Accessibility — WCAG 2.1 AA</h4>
+    <div class="compliance-item">44px minimum tap targets (72px elderly)</div>
+    <div class="compliance-item">accessibilityLabel on every element</div>
+    <div class="compliance-item">Risk always: color + icon + text</div>
+    <div class="compliance-item">Tamil text accessibilityLanguage declared</div>
+    <div class="compliance-item">Offline banner and graceful degradation</div>
+  </div>
+</div>
+
+<!-- 9-DAY SPRINT -->
+<div class="section-title">9-Day Build Sprint <span>April 19–27, 2026 · Review April 28</span></div>
+<table class="sprint-table">
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th>Date</th>
+      <th>Karthika — Backend + AI</th>
+      <th>Leader — Frontend + UI</th>
+      <th>ML Work</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><div class="day-badge">1</div></td>
+      <td>Apr 19</td>
+      <td>Auth routes · offline queue · Firestore indexes</td>
+      <td>Auth screens — signup/OTP/login</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">2</div></td>
+      <td>Apr 20</td>
+      <td>Passive monitoring · GPS entropy · baseline service</td>
+      <td>Onboarding — persona select + profile</td>
+      <td><span class="complexity-dot c-easy"></span>Baseline computation logic</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">3</div></td>
+      <td>Apr 21</td>
+      <td>Mood log → full NLP pipeline · cycle LSTM integration</td>
+      <td>Home dashboard · mood check-in screen</td>
+      <td><span class="complexity-dot c-hard"></span>NLP pipeline end-to-end</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge critical">4</div></td>
+      <td>Apr 22</td>
+      <td>Gemma chat · crisis NLP endpoint · emotion endpoint</td>
+      <td>Tamil AI chat screen</td>
+      <td><span class="complexity-dot c-hard"></span>mental-roberta + distilroberta running</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge critical">5</div></td>
+      <td>Apr 23</td>
+      <td>XGBoost training · risk endpoint · SHAP explainability</td>
+      <td>Insights screen · risk ring component</td>
+      <td><span class="complexity-dot c-hard"></span>XGBoost train + SHAP live</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">6</div></td>
+      <td>Apr 24</td>
+      <td>JITAI personalized model · FCM scheduler (node-cron)</td>
+      <td>Intervention screens — breathing/CBT/grounding</td>
+      <td><span class="complexity-dot c-medium"></span>Personalized JITAI XGBoost</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">7</div></td>
+      <td>Apr 25</td>
+      <td>Clinician dashboard backend · Gemma narrative summary</td>
+      <td>Clinician dashboard UI — React.js</td>
+      <td><span class="complexity-dot c-medium"></span>Gemma context injection</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">8</div></td>
+      <td>Apr 26</td>
+      <td>Full integration — all NLP layers on real data</td>
+      <td>All screens connected to real API</td>
+      <td><span class="complexity-dot c-medium"></span>End-to-end test with NLP models</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge">9</div></td>
+      <td>Apr 27</td>
+      <td>Security audit · Tamil testing · bug fixes</td>
+      <td>UI polish · demo prep · seed data</td>
+      <td><span class="complexity-dot c-easy"></span>Model accuracy validation</td>
+    </tr>
+    <tr>
+      <td><div class="day-badge critical">✓</div></td>
+      <td>Apr 28</td>
+      <td colspan="2" style="text-align:center;font-weight:500;">REVIEW — All systems running · Demo ready</td>
+      <td>All 7 models live</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>
+    <strong>Nirantara Feature Map v2.0.0</strong> · Anna University Regional Campus, Tirunelveli<br>
+    ML-first architecture · Zero hardcoding · Zero keyword matching · April 2026
+  </p>
+  <p style="margin-top:8px;">
+    Tags: <span style="color:var(--lavender)">■ NLP</span> &nbsp;
+    <span style="color:var(--sage)">■ ML</span> &nbsp;
+    <span style="color:var(--sage)">■ Passive</span> &nbsp;
+    <span style="color:#B07B20">■ UI</span> &nbsp;
+    <span style="color:var(--warm-gray)">■ DB</span>
+  </p>
+</div>
+
+</body>
+</html>

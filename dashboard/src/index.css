@@ -1,0 +1,222 @@
+/* dashboard/src/index.css — Design system per Build Guide §40 */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  /* Colors — §40 */
+  --rose:           #C97B84;
+  --rose-light:     #F2D9DC;
+  --rose-dark:      #8B4A52;
+  --lavender:       #9B8EC4;
+  --lavender-light: #E8E4F4;
+  --lavender-dark:  #5C4F8A;
+  --sage:           #7BA68A;
+  --sage-light:     #D6EAD9;
+  --sage-dark:      #3D6B4A;
+  --cream:          #FBF7F2;
+  --warm-white:     #FEFCFA;
+  --charcoal:       #2C2826;
+  --warm-gray:      #8A8076;
+  --soft-gray:      #C8C0B8;
+  --alert:          #E8634A;
+  --warning:        #F0A830;
+
+  /* Risk colors */
+  --risk-low:       var(--sage);
+  --risk-moderate:  var(--warning);
+  --risk-high:      var(--rose-dark);
+  --risk-crisis:    var(--alert);
+
+  /* Typography */
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body:    'DM Sans', sans-serif;
+
+  /* Spacing */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  12px;
+  --sp-lg:  16px;
+  --sp-xl:  24px;
+  --sp-xxl: 32px;
+
+  /* Radius */
+  --r-sm: 8px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(44,40,38,0.08);
+  --shadow-md: 0 4px 16px rgba(44,40,38,0.10);
+  --shadow-lg: 0 8px 32px rgba(44,40,38,0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family:      var(--font-body);
+  background-color: var(--cream);
+  color:            var(--charcoal);
+  font-size:        14px;
+  line-height:      1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; }
+h1 { font-size: 42px; }
+h2 { font-size: 26px; }
+h3 { font-size: 20px; }
+
+a { color: var(--lavender-dark); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.2s ease;
+}
+
+/* Layout */
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  background: var(--warm-white);
+  border-right: 1px solid var(--rose-light);
+  padding: var(--sp-xl) var(--sp-lg);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.main-content {
+  flex: 1;
+  padding: var(--sp-xl);
+  overflow-y: auto;
+}
+
+/* Cards */
+.card {
+  background:    var(--warm-white);
+  border-radius: var(--r-md);
+  padding:       var(--sp-xl);
+  box-shadow:    var(--shadow-sm);
+  border:        1px solid rgba(201,123,132,0.1);
+  transition:    box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover { box-shadow: var(--shadow-md); }
+
+/* Risk badges */
+.risk-badge {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           var(--sp-xs);
+  padding:       var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-pill);
+  font-size:     12px;
+  font-weight:   600;
+  letter-spacing: 0.5px;
+}
+.risk-badge.low      { background: var(--sage-light);   color: var(--sage-dark); }
+.risk-badge.moderate { background: #FEF3D9;              color: #7A5500; }
+.risk-badge.high     { background: var(--rose-light);   color: var(--rose-dark); }
+.risk-badge.crisis   { background: #FDEAE5;             color: var(--alert); }
+
+/* Buttons */
+.btn-primary {
+  background:    var(--rose);
+  color:         white;
+  border:        none;
+  border-radius: var(--r-sm);
+  padding:       var(--sp-sm) var(--sp-xl);
+  font-size:     14px;
+  font-weight:   500;
+}
+.btn-primary:hover { background: var(--rose-dark); transform: translateY(-1px); }
+
+.btn-ghost {
+  background:    transparent;
+  color:         var(--warm-gray);
+  border:        1px solid var(--soft-gray);
+  border-radius: var(--r-sm);
+  padding:       var(--sp-sm) var(--sp-lg);
+  font-size:     13px;
+}
+.btn-ghost:hover { background: var(--cream); color: var(--charcoal); }
+
+/* Crisis banner */
+.crisis-banner {
+  background:    var(--alert);
+  color:         white;
+  padding:       var(--sp-md) var(--sp-xl);
+  border-radius: var(--r-md);
+  display:       flex;
+  align-items:   center;
+  gap:           var(--sp-md);
+  margin-bottom: var(--sp-xl);
+  animation:     pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.85 } }
+
+/* Patient list */
+.patient-row {
+  display:         flex;
+  align-items:     center;
+  padding:         var(--sp-lg);
+  border-bottom:   1px solid var(--rose-light);
+  gap:             var(--sp-lg);
+  cursor:          pointer;
+  transition:      background 0.15s ease;
+}
+.patient-row:hover { background: var(--cream); }
+
+/* Inputs */
+input, textarea {
+  width:         100%;
+  padding:       var(--sp-md);
+  border:        1px solid var(--soft-gray);
+  border-radius: var(--r-sm);
+  font-family:   var(--font-body);
+  font-size:     14px;
+  background:    var(--warm-white);
+  color:         var(--charcoal);
+  transition:    border-color 0.2s ease;
+}
+input:focus, textarea:focus {
+  outline:       none;
+  border-color:  var(--rose);
+}
+
+/* Muted text */
+.muted { color: var(--warm-gray); font-size: 12px; }
+
+/* Page title */
+.page-title {
+  font-family: var(--font-display);
+  font-size:   36px;
+  font-weight: 300;
+  color:       var(--charcoal);
+  margin-bottom: var(--sp-xl);
+}
+
+/* Logo */
+.logo {
+  font-family:   var(--font-display);
+  font-size:     24px;
+  font-weight:   300;
+  color:         var(--rose-dark);
+  margin-bottom: var(--sp-xxl);
+  letter-spacing: 1px;
+}
+
+.logo span { color: var(--lavender); }
+
+/* Fade-in animation */
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+.fade-in { animation: fadeIn 0.3s ease both; }

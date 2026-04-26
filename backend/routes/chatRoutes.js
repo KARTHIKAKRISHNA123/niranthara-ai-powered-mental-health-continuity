@@ -1,38 +1,174 @@
+// routes/chatRoutes.js
+// Full context injection + Gemma 4B + encrypted chat logs
+
 const express = require('express')
 const router  = express.Router()
-const { db }  = require('../config/firebase')
 const axios   = require('axios')
+const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { chatLimiter, generalLimiter } = require('../middleware/rateLimiter')
+const { encrypt } = require('../utils/encryption')
+const { validateChatMessage } = require('../utils/validators')
 
-router.post('/message', verifyToken, async (req, res) => {
+const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+
+// POST /api/chat/message — Full NLP → Gemma context-aware response
+router.post('/message', chatLimiter, verifyToken, async (req, res) => {
   try {
+    const uid = req.user.uid
     const { message, language } = req.body
-    const aiResponse = await axios.post(
-      `${process.env.AI_SERVICE_URL}/api/chat`,
-      { message, language: language || 'en', uid: req.user.uid }
-    )
+
+    const validation = validateChatMessage(req.body)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+
+    // Pull user context (risk level, cycle vulnerability, recent mood)
+    const [userDoc, cycleDoc, recentMoodSnap] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('cycleLogs').doc(uid).get(),
+      db.collection('moodLogs').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(1).get()
+    ])
+
+    const user          = userDoc.exists  ? userDoc.data()  : {}
+    const cycle         = cycleDoc.exists ? cycleDoc.data() : {}
+    const lastMood      = !recentMoodSnap.empty ? recentMoodSnap.docs[0].data() : {}
+
+    const contextPayload = {
+      message,
+      language:           language || user.language || 'en',
+      uid,
+      cycle_vulnerability:  cycle.vulnerabilityScore   || 0,
+      mood_score:           lastMood.moodScore         || 3,
+      risk_level:           user.riskLevel             || 'low',
+      emotion_detected:     lastMood.nlpResults?.emotionLabel    || 'neutral',
+      sentiment_score:      lastMood.nlpResults?.sentimentScore  || 0.5
+    }
+
+    const aiRes = await axios.post(`${AI_URL}/api/chat`, contextPayload, { timeout: 45000 })
+    const aiData = aiRes.data
+
+    // Encrypt user message before storing
+    const encryptedMsg = encrypt(message)
+
+    const logRef = await db.collection('chatLogs').add({
+      uid,
+      userMessage:      encryptedMsg,  // AES-256-GCM encrypted
+      aiReply:          aiData.reply,
+      language:         contextPayload.language,
+      isCrisis:         aiData.isCrisis || false,
+      crisisProbability: aiData.crisisProbability || 0,
+      emotionDetected:  aiData.emotionDetected || 'neutral',
+      sentimentScore:   aiData.sentimentScore || 0.5,
+      cyclePhase:       cycle.currentPhase || 'unknown',
+      moodScore:        lastMood.moodScore || 3,
+      riskLevel:        user.riskLevel || 'low',
+      suggestions:      aiData.suggestions || [],
+      modelUsed:        aiData.modelUsed || 'gemma4b',
+      responseTimeMs:   aiData.responseTimeMs || 0,
+      offlineSyncId:    req.body.offlineSyncId || null,
+      timestamp:        new Date().toISOString()
+    })
+
+    // If crisis detected in chat, create clinician alert
+    if (aiData.crisisProbability > 0.75) {
+      await db.collection('clinicianAlerts').add({
+        patientUid: uid, clinicianUid: user.assignedClinician || '',
+        type: 'crisis', riskScore: user.riskScore || 0,
+        crisisProb: aiData.crisisProbability, triggerFactors: ['Crisis language detected in chat'],
+        resolved: false, resolvedAt: null, timestamp: new Date().toISOString()
+      })
+    }
+
+    res.json({
+      reply:             aiData.reply,
+      isCrisis:          aiData.isCrisis || false,
+      crisisProbability: aiData.crisisProbability || 0,
+      emotionDetected:   aiData.emotionDetected,
+      suggestions:       aiData.suggestions || [],
+      modelUsed:         aiData.modelUsed,
+      logId:             logRef.id
+    })
+  } catch (error) {
+    console.error('Chat error:', error.message)
+    // Graceful fallback response (never keyword-based — just a warm static message)
+    res.json({
+      reply:     "I'm here with you. It sounds like you might be going through something difficult. Would you like to tell me more about how you're feeling right now?",
+      isCrisis:  false,
+      modelUsed: 'fallback',
+      suggestions: []
+    })
+  }
+})
+
+// POST /api/chat/voice — Sarvam STT → NLP → Gemma
+router.post('/voice', chatLimiter, verifyToken, async (req, res) => {
+  try {
+    const { audioBase64, language } = req.body
+    if (!audioBase64) return res.status(400).json({ error: 'audioBase64 is required' })
+
+    // Sarvam STT transcription via AI service
+    const sttRes = await axios.post(`${AI_URL}/api/chat/transcribe`, {
+      audioBase64, language: language || 'ta'
+    }, { timeout: 20000 })
+
+    const transcribedText = sttRes.data.transcript
+    if (!transcribedText || transcribedText.trim().length === 0) {
+      return res.status(400).json({ error: 'Could not transcribe audio' })
+    }
+
+    // Forward to regular message handler logic
+    req.body.message = transcribedText
+    req.body.language = sttRes.data.detectedLanguage || language || 'ta'
+
+    // Re-use the message route logic by calling directly
+    const uid = req.user.uid
+    const contextPayload = {
+      message: transcribedText,
+      language: req.body.language,
+      uid
+    }
+
+    const aiRes = await axios.post(`${AI_URL}/api/chat`, contextPayload, { timeout: 45000 })
+    const encryptedMsg = encrypt(transcribedText)
+
     await db.collection('chatLogs').add({
-      uid:       req.user.uid,
-      userMsg:   message,
-      aiReply:   aiResponse.data.reply,
-      language:  language || 'en',
+      uid, userMessage: encryptedMsg, aiReply: aiRes.data.reply,
+      language: req.body.language, isCrisis: aiRes.data.isCrisis || false,
+      crisisProbability: aiRes.data.crisisProbability || 0,
+      inputType: 'voice', transcript: transcribedText,
       timestamp: new Date().toISOString()
     })
-    res.json({ reply: aiResponse.data.reply, isCrisis: aiResponse.data.isCrisis || false })
+
+    res.json({ reply: aiRes.data.reply, transcript: transcribedText, isCrisis: aiRes.data.isCrisis || false })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
 })
 
-router.get('/history/:uid', verifyToken, async (req, res) => {
+// GET /api/chat/history/:uid
+router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
   try {
-    const snapshot = await db.collection('chatLogs')
+    const snap = await db.collection('chatLogs')
       .where('uid', '==', req.params.uid)
-      .orderBy('timestamp', 'desc')
-      .limit(50)
-      .get()
-    const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      .orderBy('timestamp', 'desc').limit(50).get()
+    // Return without encrypted userMessage for security
+    const history = snap.docs.map(d => {
+      const { userMessage, ...safe } = d.data()
+      return { id: d.id, ...safe }
+    })
     res.json({ history })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// DELETE /api/chat/clear/:uid
+router.delete('/clear/:uid', verifyToken, async (req, res) => {
+  try {
+    const snap = await db.collection('chatLogs').where('uid', '==', req.params.uid).get()
+    const batch = db.batch()
+    snap.docs.forEach(d => batch.delete(d.ref))
+    await batch.commit()
+    res.json({ message: `Cleared ${snap.size} chat records` })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
