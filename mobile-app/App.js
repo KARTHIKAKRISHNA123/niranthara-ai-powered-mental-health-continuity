@@ -7,18 +7,13 @@ import AppNavigator from './src/navigation/AppNavigator';
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
-  const [fontsLoaded, fontError] = useFonts({
-    CormorantGaramond_300Light,
-    DMSans_400Regular,
-  });
+  const [fontsLoaded] = useFonts({ CormorantGaramond_300Light, DMSans_400Regular });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded) return null;
 
   return <AppNavigator />;
 }
