@@ -12,10 +12,10 @@ export default function ProfileSetupScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <Text style={styles.heading}>Your profile</Text>
-      <Text style={styles.subTamil}>உங்கள் விவரங்கள்</Text>
+      
 
       <View style={styles.card}>
-        <Text style={styles.label}>Age · வயது</Text>
+        <Text style={styles.label}>Age </Text>
         <TextInput
           style={styles.input}
           placeholder="e.g. 28"
@@ -25,7 +25,7 @@ export default function ProfileSetupScreen({ navigation, route }) {
           onChangeText={setAge}
         />
 
-        <Text style={styles.label}>Preferred language · விரும்பிய மொழி</Text>
+        <Text style={styles.label}>Preferred language </Text>
         <View style={styles.langRow}>
           {langs.map((l) => (
             <TouchableOpacity
@@ -40,7 +40,7 @@ export default function ProfileSetupScreen({ navigation, route }) {
 
         {persona === 'women' && (
           <>
-            <Text style={styles.label}>Last period date · கடைசி மாதவிடாய் தேதி</Text>
+            <Text style={styles.label}>Last period date</Text>
             <TextInput
               style={styles.input}
               placeholder="DD / MM / YYYY"
@@ -53,7 +53,7 @@ export default function ProfileSetupScreen({ navigation, route }) {
           style={styles.button}
           onPress={() => navigation.navigate('Home')}
         >
-          <Text style={styles.buttonText}>Get started · தொடங்குவோம்</Text>
+          <Text style={styles.buttonText}>Get started</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

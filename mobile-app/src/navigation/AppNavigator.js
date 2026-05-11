@@ -7,6 +7,8 @@ import OTPScreen from '../screens/OTPScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PersonaSelectScreen from '../screens/PersonaSelectScreen.js';
 import ProfileSetupScreen from '../screens/ProfileSetupScreen';
+import HomeScreen from '../screens/HomeScreen';
+import MoodCheckInScreen from '../screens/MoodCheckInScreen';
 
 const Stack = createStackNavigator();
 
@@ -19,6 +21,8 @@ export default function AppNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PersonaSelect" component={PersonaSelectScreen} />
         <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
+<Stack.Screen name="MoodCheckIn" component={MoodCheckInScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
