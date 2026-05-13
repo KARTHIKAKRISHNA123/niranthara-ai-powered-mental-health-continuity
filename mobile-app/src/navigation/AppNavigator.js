@@ -11,6 +11,8 @@ import HomeScreen from '../screens/HomeScreen';
 import MoodCheckInScreen from '../screens/MoodCheckInScreen';
 import ChatScreen from '../screens/ChatScreen';
 import InsightsScreen from '../screens/InsightsScreen';
+import BreatheScreen from '../screens/BreatheScreen';
+import GroundingScreen from '../screens/GroundingScreen';
 
 const Stack = createStackNavigator();
 
@@ -27,6 +29,8 @@ export default function AppNavigator() {
         <Stack.Screen name="MoodCheckIn" component={MoodCheckInScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="Insights" component={InsightsScreen} />
+        <Stack.Screen name="Breathe" component={BreatheScreen} />
+        <Stack.Screen name="Grounding" component={GroundingScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
