@@ -1,123 +1,52 @@
+import { useState } from 'react';
 import { COLORS, FONTS, RADIUS } from './constants/theme';
+import PatientList from './pages/PatientList';
 
-const statCards = [
-  { label: 'Patients', labelTa: 'நோயாளிகள்', value: '124', color: COLORS.primary },
-  { label: 'Watch', labelTa: 'கண்காணிப்பு', value: '18', color: COLORS.lavender },
-  { label: 'Alerts', labelTa: 'எச்சரிக்கைகள்', value: '5', color: COLORS.alert },
+const navItems = [
+  { key: 'patients', label: 'Patients'},
+  { key: 'alerts',   label: 'Alerts' },
+  { key: 'reports',  label: 'Reports' },
 ];
 
 export default function App() {
-  return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: COLORS.background,
-      fontFamily: FONTS.body,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px 24px',
-    }}>
+  const [page, setPage] = useState('patients');
+  const [signedIn, setSignedIn] = useState(false);
 
-      {/* Logo */}
-      <div style={{ textAlign: 'center', marginBottom: 12 }}>
-        <h1 style={{
-          fontFamily: FONTS.heading,
-          fontSize: 56,
-          fontWeight: 300,
-          color: COLORS.roseDark,
-          margin: 0,
-          letterSpacing: 3,
-        }}>
-          Nirantara
-        </h1>
-        <p style={{
-          fontFamily: FONTS.body,
-          fontSize: 15,
-          color: COLORS.muted,
-          margin: '6px 0 0',
-        }}>
-          உங்கள் நோயாளிகளின் மன ஆரோக்கியம்
-        </p>
-        <p style={{
-          fontFamily: FONTS.body,
-          fontSize: 11,
-          color: COLORS.muted,
-          letterSpacing: 2,
-          margin: '4px 0 0',
-        }}>
-          YOUR PATIENTS' MENTAL WELLBEING
-        </p>
+  if (!signedIn) {
+    return (
+      <div style={{ minHeight: '100vh', background: COLORS.background, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <h1 style={{ fontFamily: FONTS.heading, fontSize: 56, fontWeight: 300, color: COLORS.roseDark, margin: 0, letterSpacing: 3 }}>Nirantara</h1>
+        
+        <div style={{ background: '#F4EDE8', borderRadius: RADIUS.lg, padding: 32, width: '100%', maxWidth: 380 }}>
+          <input placeholder="Clinician email" style={{ width: '100%', background: COLORS.background, border: `1px solid ${COLORS.primary}33`, borderRadius: RADIUS.sm, padding: 14, fontFamily: FONTS.body, fontSize: 14, color: COLORS.text, marginBottom: 12, boxSizing: 'border-box' }} />
+          <input type="password" placeholder="Password" style={{ width: '100%', background: COLORS.background, border: `1px solid ${COLORS.primary}33`, borderRadius: RADIUS.sm, padding: 14, fontFamily: FONTS.body, fontSize: 14, color: COLORS.text, marginBottom: 20, boxSizing: 'border-box' }} />
+          <button onClick={() => setSignedIn(true)} style={{ width: '100%', background: COLORS.roseDark, color: COLORS.warmWhite, border: 'none', borderRadius: RADIUS.pill, padding: 14, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1, cursor: 'pointer' }}>
+            Sign in 
+          </button>
+        </div>
       </div>
+    );
+  }
 
-      {/* Divider */}
-      <div style={{ width: 48, height: 1, backgroundColor: COLORS.primary, opacity: 0.4, margin: '24px 0' }} />
-
-      {/* Stat cards */}
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        marginBottom: 40,
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-      }}>
-        {statCards.map((card) => (
-          <div key={card.label} style={{
-            backgroundColor: '#F4EDE8',
-            borderRadius: RADIUS.md,
-            padding: '28px 36px',
-            textAlign: 'center',
-            minWidth: 140,
-            border: `1px solid ${card.color}22`,
-          }}>
-            <div style={{
-              fontFamily: FONTS.heading,
-              fontSize: 48,
-              fontWeight: 600,
-              color: card.color,
-              lineHeight: 1,
-            }}>
-              {card.value}
-            </div>
-            <div style={{
-              fontFamily: FONTS.body,
-              fontSize: 13,
-              color: COLORS.text,
-              marginTop: 6,
-              fontWeight: 500,
-            }}>
-              {card.label}
-            </div>
-            <div style={{
-              fontFamily: FONTS.body,
-              fontSize: 11,
-              color: COLORS.muted,
-              marginTop: 2,
-            }}>
-              {card.labelTa}
-            </div>
-          </div>
+  return (
+    <div style={{ minHeight: '100vh', background: COLORS.background, display: 'flex' }}>
+      {/* Sidebar */}
+      <div style={{ width: 220, background: '#F4EDE8', padding: '32px 16px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ fontFamily: FONTS.heading, fontSize: 28, color: COLORS.roseDark, letterSpacing: 2, marginBottom: 4 }}>Nirantara</div>
+        <div style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.muted, marginBottom: 32 }}>Clinician portal</div>
+        {navItems.map(n => (
+          <button key={n.key} onClick={() => setPage(n.key)} style={{ background: page === n.key ? COLORS.primary + '22' : 'transparent', border: 'none', borderRadius: RADIUS.md, padding: '10px 14px', textAlign: 'left', cursor: 'pointer', marginBottom: 4 }}>
+            <div style={{ fontFamily: FONTS.body, fontSize: 14, color: page === n.key ? COLORS.roseDark : COLORS.text, fontWeight: page === n.key ? 500 : 400 }}>{n.label}</div>
+            <div style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.muted }}>{n.labelTa}</div>
+          </button>
         ))}
       </div>
-
-      {/* Sign in button */}
-      <button style={{
-        backgroundColor: COLORS.roseDark,
-        color: COLORS.warmWhite,
-        fontFamily: FONTS.body,
-        fontSize: 14,
-        letterSpacing: 1.5,
-        border: 'none',
-        borderRadius: RADIUS.pill,
-        padding: '14px 48px',
-        cursor: 'pointer',
-        textTransform: 'uppercase',
-      }}>
-        Sign In as Clinician
-      </button>
-      <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 8 }}>
-        க்ளினிசியனாக உள்நுழைக
-      </p>
+      {/* Main */}
+      <div style={{ flex: 1 }}>
+        {page === 'patients' && <PatientList />}
+        {page === 'alerts' && <div style={{ padding: 32, fontFamily: FONTS.body, color: COLORS.muted }}>Alerts page </div>}
+        {page === 'reports' && <div style={{ padding: 32, fontFamily: FONTS.body, color: COLORS.muted }}>Reports page </div>}
+      </div>
     </div>
   );
 }
