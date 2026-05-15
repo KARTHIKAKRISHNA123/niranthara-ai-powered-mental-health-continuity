@@ -5,6 +5,7 @@ import {
   Platform, SafeAreaView,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
+import { api } from '../utils/api';
 
 const STARTER_MESSAGES = [
   {
@@ -30,20 +31,13 @@ export default function ChatScreen({ navigation }) {
     setInput('');
     setLoading(true);
 
-    // Placeholder reply — replaced with real Gemma API in Task 8
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'assistant',
-          text: 'I am listening. Tell me more.',
-        },
-      ]);
-      setLoading(false);
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, 1200);
-  };
+    const data = await api.post('/api/chat', { message: input, userId: 'user_123' });
+setMessages(prev => [...prev, {
+  id: Date.now() + 1,
+  role: 'assistant',
+  text: data.response || 'Please try again',
+}]);
+setLoading(false);
 
   return (
     <SafeAreaView style={styles.safe}>
