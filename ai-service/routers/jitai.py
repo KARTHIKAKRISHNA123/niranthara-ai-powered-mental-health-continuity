@@ -145,3 +145,71 @@ async def train_jitai(request: TrainRequest):
     if model is None:
         return {"status": "insufficient_data", "message": f"Need ≥5 responses, have {len(request.history)}"}
     return {"status": "trained", "dataPoints": len(request.history)}
+
+
+# ── POST /api/jitai/log-response ──────────────────────────────────────────────
+# Called from SomaticBreathing and CBTReframe post-session ("I feel better" / "I need more help").
+# Saves response to Firestore and triggers personalized model retrain if ≥5 data points exist.
+
+class LogResponseRequest(BaseModel):
+    uid:                 str
+    interventionType:    str               # e.g. "breathing", "cbt_reframe"
+    responseType:        str               # "feel_better" | "need_more_help"
+    riskScoreAtTrigger:  float = 0.5
+    cycleVulnerability:  float = 0.0
+    stepsDeviationScore: float = 0.3
+    hour_of_day:         int   = 12
+    day_of_week:         int   = 0
+
+
+@router.post("/log-response")
+async def log_jitai_response(request: LogResponseRequest):
+    """
+    Persists one JITAI response to disk (Firestore write handled by Node backend;
+    here we update the local pkl training history and retrain if enough data exists).
+    """
+    import datetime
+
+    # Build the history record for this response
+    record = {
+        "uid":                  request.uid,
+        "interventionType":     request.interventionType,
+        "responseType":         request.responseType,
+        "riskScoreAtTrigger":   request.riskScoreAtTrigger,
+        "cycleVulnerability":   request.cycleVulnerability,
+        "stepsDeviationScore":  request.stepsDeviationScore,
+        "hour_of_day":          request.hour_of_day,
+        "day_of_week":          request.day_of_week,
+        "timestamp":            datetime.datetime.utcnow().isoformat(),
+    }
+
+    # Load existing history (stored as a simple JSON list alongside the pkl)
+    import json
+    history_path = f"models/user_jitai/{request.uid}_history.json"
+    os.makedirs("models/user_jitai", exist_ok=True)
+
+    history: list = []
+    if os.path.exists(history_path):
+        with open(history_path, "r") as f:
+            try:
+                history = json.load(f)
+            except Exception:
+                history = []
+
+    history.append(record)
+
+    with open(history_path, "w") as f:
+        json.dump(history, f)
+
+    # Auto-retrain once we have ≥5 responses
+    retrained = False
+    if len(history) >= 5:
+        model = train_user_jitai_model(request.uid, history)
+        retrained = model is not None
+
+    return {
+        "status":        "logged",
+        "totalResponses": len(history),
+        "retrained":      retrained,
+        "message":        f"Response logged. Model {'retrained' if retrained else 'needs more data'} ({len(history)}/5 min)."
+    }

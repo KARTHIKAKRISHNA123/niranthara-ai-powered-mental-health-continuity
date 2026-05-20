@@ -221,4 +221,26 @@ router.get('/export-data', verifyToken, async (req, res) => {
   }
 })
 
+// PATCH /api/auth/update-profile
+// Saves persona selection + onboardingComplete flag (called from Onboarding screen)
+router.patch('/update-profile', verifyToken, async (req, res) => {
+  try {
+    const uid     = req.user.uid
+    const allowed = ['persona', 'onboardingComplete', 'language', 'name', 'age']
+    const updates = {}
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key]
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' })
+    }
+    updates.updatedAt = new Date().toISOString()
+    await db.collection('users').doc(uid).update(updates)
+    const updated = await db.collection('users').doc(uid).get()
+    res.json({ success: true, user: { uid, ...updated.data() } })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 module.exports = router

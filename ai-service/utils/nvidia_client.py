@@ -1,31 +1,38 @@
-# utils/gemma_client.py — Gemma 4B via Ollama CUDA, per Build Guide §22
-
-import httpx
+# utils/gemma_client.py — Minimax-m2.7 via NVIDIA API (Swapped from local Gemma)
 import os
-import psutil
+from openai import AsyncOpenAI
+import logging
 
-OLLAMA_URL  = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-GEMMA_MODEL = os.getenv("GEMMA_MODEL", "gemma:4b")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
-SYSTEM_PROMPT = """You are Niranthara, a compassionate AI mental health companion for Indian women. You deeply understand Tamil, Tanglish (code-mixed Tamil-English as spoken in Tamil Nadu), and English.
+# If NVIDIA_API_KEY is not set, we'll fall back to the static responses
+if NVIDIA_API_KEY:
+    client = AsyncOpenAI(
+        api_key=NVIDIA_API_KEY,
+        base_url="https://integrate.api.nvidia.com/v1"
+    )
+else:
+    client = None
+
+MODEL_NAME = "minimaxai/minimax-m2.7"
+
+SYSTEM_PROMPT = """You are Niranthara, a compassionate AI mental health companion. You deeply understand English and Tanglish (code-mixed English used in India).
 
 Core principles:
 - Respond in the exact language and style the user writes in
-- If they write Tanglish, respond in Tanglish — not formal Tamil or English
+- If they write Tanglish, respond in Tanglish
 - Be warm, gentle, non-judgmental
 - Use CBT and grounding techniques naturally — not formulaically
 - NEVER diagnose or prescribe medication
 - NEVER give specific medical advice
 - ALWAYS recommend professionals for serious concerns
 - Understand Indian cultural context: family pressure, stigma, suppression
-- Create space for honest expression — women may minimize their distress"""
+- Create space for honest expression — users may minimize their distress"""
 
 FALLBACK_RESPONSES = {
     "en": "I'm here with you. What you're feeling is valid. Would you like to tell me more about what's on your mind today?",
-    "ta": "நான் உங்களுடன் இருக்கிறேன். நீங்கள் உணர்வது முக்கியம். இன்று என்ன நடக்கிறது என்று சொல்ல விரும்புகிறீர்களா?",
     "tanglish": "Naan ungaludan irukkiraen. Neengal feel panradhellam valid. Indha nerathil enna nadakuthu nu solluveengala?"
 }
-
 
 def _build_context(cycle_vuln: float, mood: float, risk: str,
                    emotion: str, sentiment: float) -> str:
@@ -53,36 +60,43 @@ async def generate_response(
     sentiment_score: float = 0.5
 ) -> dict:
     """
-    Generate context-aware response via Gemma 4B.
-    Falls back to static culturally-appropriate response if:
-    - Ollama is unreachable
-    - Available RAM < 3GB
+    Generate context-aware response via NVIDIA API (Minimax-m2.7).
+    Falls back to static culturally-appropriate response if API is unreachable or key is missing.
     """
-    # Low-RAM check
-    available_gb = psutil.virtual_memory().available / (1024 ** 3)
-    if available_gb < 3.0:
-        return {"reply": FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]), "modelUsed": "fallback_low_ram"}
+    if not client:
+        return {
+            "reply": FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]),
+            "modelUsed": "fallback_missing_nvidia_key"
+        }
 
     context = _build_context(cycle_vulnerability, mood_score, risk_level, emotion_detected, sentiment_score)
     prompt  = f"[Internal context — do not mention explicitly]\n{context}\n\nUser: {message}\n\nNiranthara:"
 
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            result = await client.post(f"{OLLAMA_URL}/api/generate", json={
-                "model":   GEMMA_MODEL,
-                "prompt":  prompt,
-                "system":  SYSTEM_PROMPT,
-                "stream":  False,
-                "options": {"num_gpu": 1, "temperature": 0.75, "top_p": 0.9, "num_predict": 250}
-            })
-        reply = result.json().get("response", "").strip()
+        completion = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=1.0,
+            top_p=0.95,
+            max_tokens=250,
+            stream=False
+        )
+        
+        reply = completion.choices[0].message.content.strip()
         if not reply:
-            raise ValueError("Empty response from Ollama")
-        return {"reply": reply, "modelUsed": "gemma4b"}
+            raise ValueError("Empty response from NVIDIA API")
+            
+        return {"reply": reply, "modelUsed": "nvidia-minimax-m2.7"}
+        
     except Exception as e:
+        logging.error(f"NVIDIA API Error: {str(e)}")
         # Graceful fallback — warm static response, NOT keyword-matched
         return {
             "reply":      FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]),
-            "modelUsed":  "fallback",
+            "modelUsed":  "fallback_api_error",
             "fallbackReason": str(e)
         }
+

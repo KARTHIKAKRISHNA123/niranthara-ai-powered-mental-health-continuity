@@ -91,7 +91,7 @@ export default function PatientDetail() {
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
-        <div className="logo">Nirant<span>ara</span></div>
+        <div className="logo">Niranth<span>ara</span></div>
         <button onClick={() => nav('/dashboard')} className="btn-ghost" style={{ marginBottom: 'var(--sp-lg)', width: '100%', textAlign: 'left' }}>← Back</button>
         <div style={{ flex: 1 }} />
         <button onClick={flagPatient} disabled={flagging} className="btn-ghost" style={{ width: '100%', marginBottom: 8 }}>🚩 Flag Patient</button>

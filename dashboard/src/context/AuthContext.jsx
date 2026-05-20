@@ -26,7 +26,16 @@ export function AuthProvider({ children }) {
     })
   }, [])
 
-  const login  = (email, password) => signInWithEmailAndPassword(auth, email, password)
+  const login = async (email, password) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const snap = await getDoc(doc(db, 'users', cred.user.uid));
+    if (snap.exists() && snap.data().role === 'clinician') {
+      setClinician({ uid: cred.user.uid, email: cred.user.email, ...snap.data() });
+    } else {
+      await signOut(auth);
+      throw new Error('Not authorized as clinician');
+    }
+  };
   const logout = () => { signOut(auth); setClinician(null) }
 
   return (

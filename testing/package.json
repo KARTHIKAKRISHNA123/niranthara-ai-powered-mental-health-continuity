@@ -1,0 +1,13 @@
+{
+  "name": "niranthara-tests",
+  "version": "1.0.0",
+  "description": "Niranthara platform test suite",
+  "main": "test_backend_api.test.js",
+  "scripts": {
+    "test": "node test_backend_api.test.js",
+    "test:python": "cd ../ai-service && venv\\Scripts\\activate && pytest ../testing/test_ai_pipeline.py -v"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

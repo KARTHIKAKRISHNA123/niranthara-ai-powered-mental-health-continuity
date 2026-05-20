@@ -20,9 +20,8 @@ export default function App() {
           CormorantGaramond_500Medium,
           DMSans_400Regular,
           DMSans_500Medium,
-          DMSans_700Bold
+          DMSans_700Bold,
         });
-        
         // Register background tasks
         await registerPassiveMonitor();
       } catch (e) {
@@ -31,7 +30,6 @@ export default function App() {
         setFontsLoaded(true);
       }
     }
-
     loadResourcesAndDataAsync();
   }, []);
 

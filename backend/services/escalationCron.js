@@ -1,73 +1,127 @@
-// services/escalationCron.js
+// services/escalationCron.js — Build_Guide §20 + §42
+// Runs every 15 minutes (instead of daily) to catch crisis-probability spikes quickly.
+// Triggers: (a) crisis_prob > 0.85 from recent mood log OR (b) high risk + 3+ days inactive.
+
+const cron = require('node-cron');
 const { db } = require('../config/firebase');
+const { sendToDevice } = require('./notificationService');
 
-/**
- * Runs daily to detect "Loss of Follow-up" cases (high ML risk + no engagement).
- */
+const CRISIS_PROB_THRESHOLD  = 0.85;
+const HIGH_RISK_THRESHOLD    = 0.70;
+const INACTIVITY_DAYS        = 3;
+const RE_ESCALATE_HOURS      = 6; // Don't spam the same patient more than once per 6h
+
+// ─── Core check ─────────────────────────────────────────────────────────────
 async function checkEscalations() {
-  console.log('[EscalationCron] Starting daily check for loss of follow-up...');
-  
-  try {
-    const usersSnapshot = await db.collection('users').get();
-    const now = new Date();
-    
-    let escalatedCount = 0;
+  console.log('[EscalationCron] Running — checking crisis prob + loss-of-follow-up…');
+  const now  = new Date();
+  let created = 0;
 
-    for (const doc of usersSnapshot.docs) {
+  try {
+    const usersSnap = await db.collection('users').get();
+
+    for (const doc of usersSnap.docs) {
       const user = doc.data();
-      
-      // Skip if already escalated recently
-      if (user.lastEscalated && (now - new Date(user.lastEscalated)) < (7 * 24 * 60 * 60 * 1000)) {
-        continue; 
+      const uid  = doc.id;
+
+      // Skip if recently escalated (avoid repeat alerts within 6h)
+      if (user.lastEscalated) {
+        const hoursSince = (now - new Date(user.lastEscalated)) / (1000 * 60 * 60);
+        if (hoursSince < RE_ESCALATE_HOURS) continue;
       }
 
-      const riskScore = user.riskScore || 0;
-      
-      // Check passive logs to see last engagement
-      const logsSnap = await db.collection('passiveLogs')
-        .where('uid', '==', doc.id)
+      // ── 1. Crisis probability spike (from latest mood log) ──────────────
+      const latestLogSnap = await db.collection('moodLogs')
+        .where('uid', '==', uid)
         .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
 
-      let lastActive = user.createdAt; // Fallback
-      if (!logsSnap.empty) {
-        lastActive = logsSnap.docs[0].data().createdAt;
+      if (!latestLogSnap.empty) {
+        const log = latestLogSnap.docs[0].data();
+        if ((log.crisisProb || 0) >= CRISIS_PROB_THRESHOLD) {
+          await _createAlert(uid, user, 'crisis_detected', 'critical',
+            `Crisis language detected (NLP prob: ${(log.crisisProb * 100).toFixed(0)}%). Immediate clinician review required.`
+          );
+          created++;
+          continue; // Don't also create a loss-of-follow-up alert for same user
+        }
       }
-      
-      const daysSinceActive = (now - new Date(lastActive)) / (1000 * 60 * 60 * 24);
 
-      // Rule: If XGBoost Risk > 0.7 AND Last App Open > 3 Days
-      if (riskScore > 0.7 && daysSinceActive > 3) {
-        console.warn(`[EscalationCron] User ${doc.id} escalated. Risk: ${riskScore}, Inactive: ${daysSinceActive} days.`);
-        
-        // 1. Create a Critical Alert in Firestore for the Clinician Dashboard
-        await db.collection('clinicianAlerts').add({
-          patientUid: doc.id,
-          patientName: user.name || 'Unknown',
-          type: 'loss_of_contact',
-          severity: 'critical',
-          message: `Patient has high ML risk score (${(riskScore*100).toFixed(0)}%) and has not opened the app in ${Math.floor(daysSinceActive)} days.`,
-          resolved: false,
-          timestamp: now.toISOString()
-        });
+      // ── 2. High risk + loss of follow-up ─────────────────────────────────
+      const riskScore = user.riskScore || 0;
+      if (riskScore < HIGH_RISK_THRESHOLD) continue;
 
-        // 2. Mark user document
-        await db.collection('users').doc(doc.id).update({
-          lastEscalated: now.toISOString()
-        });
+      const passiveSnap = await db.collection('passiveLogs')
+        .where('uid', '==', uid)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
 
-        // 3. (Mock) Trigger SMS to Emergency Contact
-        // In production: await twilio.messages.create({ to: user.emergencyContact, ... })
+      const lastActive = passiveSnap.empty
+        ? user.createdAt
+        : passiveSnap.docs[0].data().createdAt;
 
-        escalatedCount++;
+      const daysSince = (now - new Date(lastActive)) / (1000 * 60 * 60 * 24);
+
+      if (daysSince >= INACTIVITY_DAYS) {
+        await _createAlert(uid, user, 'loss_of_contact', 'high',
+          `High risk (${(riskScore * 100).toFixed(0)}%) and no app activity for ${Math.floor(daysSince)} days.`
+        );
+        created++;
       }
     }
-    
-    console.log(`[EscalationCron] Completed. Escalated ${escalatedCount} high-risk inactive patients.`);
-  } catch (error) {
-    console.error('[EscalationCron] Error running escalation checks:', error);
+
+    console.log(`[EscalationCron] Done — ${created} new alerts created.`);
+  } catch (err) {
+    console.error('[EscalationCron] Error:', err.message);
   }
 }
 
-module.exports = { checkEscalations };
+// ─── Helper: create Firestore alert + FCM push ───────────────────────────────
+async function _createAlert(uid, user, type, severity, message) {
+  // 1. Firestore alert document
+  await db.collection('clinicianAlerts').add({
+    patientUid:  uid,
+    patientName: user.name || 'Unknown',
+    type,
+    severity,
+    message,
+    resolved:    false,
+    timestamp:   new Date().toISOString(),
+  });
+
+  // 2. Mark user to prevent re-escalation spam
+  await db.collection('users').doc(uid).update({
+    lastEscalated: new Date().toISOString(),
+  });
+
+  // 3. FCM push to any clinician FCM tokens stored in /clinicians collection
+  try {
+    const clinicianSnap = await db.collection('clinicians').get();
+    for (const c of clinicianSnap.docs) {
+      const fcmToken = c.data().fcmToken;
+      if (fcmToken) {
+        await sendToDevice(fcmToken, {
+          title: severity === 'critical' ? '🚨 Crisis Alert — Niranthara' : '⚠️ Patient Alert — Niranthara',
+          body:  `${user.name || 'A patient'}: ${message}`,
+        });
+      }
+    }
+  } catch (fcmErr) {
+    console.warn('[EscalationCron] FCM push failed (non-fatal):', fcmErr.message);
+  }
+
+  console.warn(`[EscalationCron] ALERT created — uid:${uid} type:${type} severity:${severity}`);
+}
+
+// ─── Start cron (called from index.js) ──────────────────────────────────────
+function startEscalationCron() {
+  // Every 15 minutes
+  cron.schedule('*/15 * * * *', checkEscalations);
+  console.log('[EscalationCron] Scheduled — runs every 15 minutes.');
+  // Run immediately on startup too
+  checkEscalations();
+}
+
+module.exports = { startEscalationCron, checkEscalations };

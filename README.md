@@ -65,7 +65,7 @@ The problem has three explicit components. Every component is addressed by a dis
 
 | Problem Component | Solution Implemented | Code Evidence |
 |---|---|---|
-| **Incomplete symptom alleviation** | Gemma 4B AI companion delivers CBT, somatic breathing, and emotional support 24/7 in multiple languages | `ai-service/routers/chat.py` · `ai-service/utils/gemma_client.py` |
+| **Incomplete symptom alleviation** | Gemma 4B AI companion delivers CBT, somatic breathing, and emotional support 24/7 in multiple languages | `ai-service/routers/chat.py` · `ai-service/utils/nvidia_client.py` |
 | **Attrition** | `dropout_model.pkl` — XGBoost binary classifier trained on `dropout_dataset.csv` predicts which patients are at risk of abandoning treatment | `ai-service/routers/dropout.py` · `ai-service/models/dropout_trainer.py` |
 | **Loss of follow-up** | Passive monitoring continues silently when patients go dark. Personalized JITAI ML fires re-engagement at optimal moments. Clinician dashboard alerts in real time. | `backend/services/jitaiScheduler.js` · `backend/services/escalationCron.js` · `dashboard/src/pages/Alerts.jsx` |
 
@@ -771,7 +771,7 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 - Used by `crisis.py` and `emotion.py` — both models require English input
 - Mock mode available for development without API key
 
-### `utils/gemma_client.py`
+### `utils/nvidia_client.py`
 - Builds dynamic context note from cycle vulnerability, mood, risk level, emotion
 - Injects context as internal system note before user message
 - Calls Ollama `/api/generate` with `num_gpu: 1` to force CUDA inference
@@ -867,7 +867,7 @@ Niranthara-AI-Powered-Mental-Health-Continuity-1/
 │   │   └── user_jitai/                      # Per-user JITAI XGBoost pkl files — {uid}.pkl
 │   │
 │   ├── utils/
-│   │   ├── gemma_client.py                  # Ollama client, context builder, RAM-based fallback
+│   │   ├── nvidia_client.py                  # Ollama client, context builder, RAM-based fallback
 │   │   ├── sarvam_client.py                 # Tamil STT (saarika:v1) + translation (mayura:v1)
 │   │   ├── language_detector.py             # Tamil / Tanglish / English classification
 │   │   └── baseline.py                      # Z-score deviation computation (0–1 normalized)
@@ -1403,3 +1403,122 @@ As computer science students with skills in machine learning and systems enginee
 `mental-roberta` · `indic-bert` · `emotion-distilroberta` · `Gemma 4B` · `XGBoost + SHAP` · `PyTorch LSTM` · `Sarvam AI` · `Firebase` · `Expo` · `GCP`
 
 </div>
+
+---
+
+## 21. Smartwatch Integration (Google Health API)
+
+Niranthara uses a **Cloud-First Abstraction Layer** to pull clinical-grade biometric data from Fitbit and WearOS devices via the Google Health API. This makes the platform entirely **device-agnostic** — any Health Connect-compatible wearable feeds the same XGBoost risk model.
+
+> *"HRV deviation from the user's personal baseline is Niranthara's earliest physiological depression indicator — often visible 5–7 days before mood decline becomes conscious."*
+
+### Biometric Signal Mapping
+
+| Biometric Signal | Source | Google Health API Field | Maps to XGBoost Feature |
+|---|---|---|---|
+| Heart Rate Variability | Fitbit via Google Health | `daily-heart-rate-variability` | `hrv_deviation_score` |
+| Resting Heart Rate | Fitbit via Google Health | `daily-resting-heart-rate` | `rhr_deviation_score` |
+| Cardiac Stress | Fitbit intraday HR | `heart-rate` 1-min resolution | `cardiac_stress_score` |
+| Sleep Quality | Fitbit sleep stages | `sleep` (deep/REM/light/awake) | `sleep_quality_score` |
+| Active Minutes | Fitbit activity | `active-minutes` · `steps` | Augments `steps_deviation_score` |
+| Basal Body Temperature | Fitbit via Google Health | `body-temperature` | Augments `cycle_vulnerability_score` |
+| Respiratory Rate | Fitbit sleep tracking | `respiratory-rate` | Augments `anxiety_level_avg_7d` |
+
+### Architecture
+
+```
+smartwatch/              ← standalone Node.js service (port 5001)
+├── index.js             # Express entry point
+├── routes/oauthRoutes.js        # Google OAuth 2.0 connect + callback
+├── services/BiometricSyncService.js  # Cloud-to-cloud sync
+├── services/biometricCron.js         # node-cron */15 * * * *
+└── utils/healthApiClient.js          # API fetch + auto token refresh
+```
+
+### Start Smartwatch Service
+
+```bash
+cd smartwatch && npm install
+node index.js
+# Running on: http://localhost:5001
+# Health check: http://localhost:5001/health
+```
+
+### OAuth Setup
+
+```bash
+# Step 1 — Connect a user's Fitbit account (from mobile app)
+# Opens: http://localhost:5001/smartwatch/auth/connect?uid=USER_UID
+# Redirects to Google consent screen → tokens stored encrypted in Firestore
+
+# Step 2 — Biometric sync runs automatically every 15 minutes
+# Manual trigger to test:
+node -e "require('./smartwatch/services/BiometricSyncService').sweepAllUsers()"
+```
+
+---
+
+## 22. Comprehensive Feature List (End-to-End)
+
+This section details every feature built from scratch across the entire Niranthara platform.
+
+### 📱 1. Mobile App (React Native + Expo)
+- **Authentication:** Secure Firebase Auth integration with profile completion flows.
+- **Onboarding Risk Profiling:** Baseline survey to establish initial XGBoost risk parameters.
+- **Dual Ring Dashboard:** Real-time visual tracking of ML Risk Score (0-100%) and Menstrual Cycle Phase (Compact SVG rings).
+- **Daily Journal Check-In:** Accepts both text and audio inputs (converted via Sarvam AI).
+- **Just-In-Time Adaptive Interventions (JITAI):**
+  - **CBT Cognitive Reframing:** Interactive 5-minute sessions to challenge negative thoughts.
+  - **Somatic Breathing:** 4-4-6 guided breathing exercises with visual pacing rings.
+  - **5-4-3-2-1 Grounding:** Anxiety reduction exercises triggered during high-stress windows.
+- **Insights Dashboard:** 30-day visual trends for mood, sleep, and steps, alongside SHAP-explained risk factors.
+- **Smartwatch Connection UI:** Fitbit connection status, last sync timestamp, and HRV deviation visualizations.
+- **Offline-First Resilience:** Actions are queued in AsyncStorage and synced seamlessly when network returns.
+- **Multilingual Support:** Full support for Tamil, Tanglish, and English via Sarvam AI translation layers.
+
+### 🧠 2. AI Service (Python + FastAPI)
+- **Local LLM Integration:** Uses Gemma 4B via Ollama for private, context-aware CBT responses.
+- **Crisis Detection:** HuggingFace `mental-roberta-base` semantic classifier (prevents false positives from simple keyword matching).
+- **Sentiment & Emotion Analysis:** `IndicBERT` (for Indian languages) and `emotion-english-distilroberta-base` (7-class emotion labeling).
+- **XGBoost Risk Fusion Model:** 14-feature gradient boosting model that aggregates journal sentiment, passive sensors, biometrics, and cycle phase into a unified Risk Score. Includes SHAP value generation for clinical explainability.
+- **Dropout Prediction Model:** XGBoost binary classifier predicting if a patient will abandon the platform.
+- **Cycle Vulnerability Model:** PyTorch LSTM predicting days of high emotional vulnerability based on hormonal cycle history and basal body temperature.
+- **Sarvam AI Integration:** Speech-to-text for audio journals and native Tamil translation.
+
+### ⚙️ 3. Backend API (Node.js + Express)
+- **AES-256-GCM Encryption:** All sensitive journal entries and biometric logs are encrypted before reaching the database.
+- **Passive Monitoring Aggregation:** Calculates personal 30-day baseline z-scores for sleep proxies, step counts, and GPS entropy.
+- **Escalation Cron Job:** Checks for user dropouts every 6 hours and flags high-risk patients to clinicians.
+- **JITAI Scheduler:** Evaluates predictive receptivity hourly and fires Firebase Cloud Messaging (FCM) pushes when intervention probability is high.
+- **Security Middleware:** Helmet, CORS, and Express Rate Limiting (100 req/15 min).
+
+### ⌚ 4. Smartwatch Service (Node.js)
+- **Google Health API Integration:** Pulls Fitbit and WearOS telemetry via the unified Health API.
+- **Google OAuth 2.0 Flow:** Seamless connection with AES-256-GCM encrypted token storage.
+- **Cloud-to-Cloud Cron Sync:** Sweeps all connected users every 15 minutes.
+- **Clinical-Grade Biometric Fetching:**
+  - Heart Rate Variability (HRV)
+  - Resting Heart Rate (RHR)
+  - Cardiac Stress Ratio (Intraday HR)
+  - Sleep Quality (Granular Stages)
+  - Active Minutes & Steps
+  - Basal Body Temperature
+  - Respiratory Rate
+
+### 👨‍⚕️ 5. Clinician Dashboard (React + Vite)
+- **Real-Time Patient Queue:** Uses Firestore `onSnapshot` to order patients instantly based on dynamic ML risk scores.
+- **Live Alerts System:** Real-time triage queue for Crisis detections and Attrition (Dropout) warnings.
+- **Detailed Patient View:**
+  - Full decrypted journal history with AI-labeled sentiments.
+  - Interactive Recharts for biometric deviations and mood trajectories.
+  - Cycle phase overlay tracking.
+- **Clinical Reporting:** One-click PDF generation via `jsPDF` for external EHR systems.
+
+### ☁️ 6. Infrastructure & Database (Google Cloud + Firebase)
+- **Firestore Collections:** `users`, `moodLogs`, `passiveLogs`, `biometricLogs`, `jitaiLogs`, `clinicianAlerts`.
+- **Firebase Cloud Messaging (FCM):** Push notification infrastructure for JITAI.
+- **Data Minimization:** No plaintext location data stored; only localized GPS entropy scores.
+
+---
+---
+

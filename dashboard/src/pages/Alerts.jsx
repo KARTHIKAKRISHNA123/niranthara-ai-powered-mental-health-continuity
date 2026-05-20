@@ -29,7 +29,7 @@ export default function Alerts() {
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
-        <div className="logo">Nirant<span>ara</span></div>
+        <div className="logo">Niranth<span>ara</span></div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
           <button onClick={() => nav('/dashboard')} style={{ textAlign:'left', background:'transparent', color:'var(--warm-gray)', border:'none', padding:'10px var(--sp-md)', borderRadius:'var(--r-sm)', fontSize:14, cursor:'pointer' }}>📋 Patients</button>
           <button style={{ textAlign:'left', background:'var(--rose-light)', color:'var(--rose-dark)', border:'none', padding:'10px var(--sp-md)', borderRadius:'var(--r-sm)', fontSize:14, cursor:'pointer' }}>🔔 Alerts</button>

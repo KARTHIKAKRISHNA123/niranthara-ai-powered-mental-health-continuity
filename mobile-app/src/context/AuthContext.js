@@ -13,6 +13,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); // True while Firebase checks auth state on load
   const [dbUser, setDbUser] = useState(null); // The user's profile from the backend
 
+  // Call this after profile mutations (e.g., onboarding save) to re-sync state
+  const refreshDbUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data?.user) setDbUser(res.data.user);
+    } catch (e) {
+      console.warn('refreshDbUser failed:', e.message);
+    }
+  };
+
   useEffect(() => {
     // Listen for Firebase Auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -53,8 +63,8 @@ export const AuthProvider = ({ children }) => {
       await api.post('/auth/register', {
         name: name,
         email: email,
-        language: 'en', // Default, can be changed in onboarding
-        personaType: 'general'
+        language: 'en',
+        personaType: 'women', // Default; Onboarding screen lets user confirm
       });
     } catch (e) {
       console.warn("Backend registration failed (might already exist):", e);
@@ -73,7 +83,8 @@ export const AuthProvider = ({ children }) => {
     login,
     signup,
     logout,
-    loading
+    loading,
+    refreshDbUser,
   };
 
   return (

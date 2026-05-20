@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile-app",
-    "slug": "mobile-app",
+    "name": "Niranthara",
+    "slug": "niranthara",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,24 +10,69 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FBF7F2"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.niranthara.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Niranthara uses your location to measure social activity patterns for personalised mental health support.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Niranthara uses location in the background to track GPS entropy as a passive wellbeing signal.",
+        "NSMotionUsageDescription": "Niranthara uses your step count as a passive wellbeing signal to personalise your mental health continuity.",
+        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#FBF7F2"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.niranthara.app",
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Niranthara uses your location to measure social activity patterns for personalised mental health support.",
+          "locationAlwaysAndWhenInUsePermission": "Niranthara uses location in the background to track GPS entropy as a passive wellbeing signal.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Niranthara uses your step count as a passive wellbeing signal."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#C97B84",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
+      "expo-background-fetch",
+      "expo-task-manager"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "niranthara-app"
+      }
+    }
   }
 }

@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
-from utils.gemma_client import generate_response
+from utils.nvidia_client import generate_response
 from utils.sarvam_client import transcribe_audio, is_mocked
 from utils.language_detector import detect_language
 from transformers import pipeline

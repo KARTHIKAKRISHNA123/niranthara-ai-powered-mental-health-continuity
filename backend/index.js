@@ -58,8 +58,7 @@
     require('./services/jitaiScheduler')
     console.log('JITAI scheduler started')
 
-    // Start Daily Escalation Cron Job
-    const { checkEscalations } = require('./services/escalationCron')
-    setInterval(checkEscalations, 24 * 60 * 60 * 1000) // Run every 24 hours
-    console.log('Daily Loss-of-Follow-Up Escalation Job scheduled')
+    // Start 15-minute escalation cron (crisis prob + loss-of-follow-up)
+    const { startEscalationCron } = require('./services/escalationCron')
+    startEscalationCron()
   })

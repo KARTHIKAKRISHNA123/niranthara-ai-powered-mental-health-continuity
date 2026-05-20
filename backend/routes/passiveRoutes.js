@@ -141,6 +141,37 @@ router.post('/sync-batch', verifyToken, async (req, res) => {
   }
 })
 
+// GET /api/passive/summary/:uid — 7-day passive summary for Home screen widgets
+router.get('/summary/:uid', generalLimiter, verifyToken, async (req, res) => {
+  try {
+    const sevenAgo = new Date(); sevenAgo.setDate(sevenAgo.getDate() - 7)
+    const snap = await db.collection('passiveLogs')
+      .where('uid', '==', req.params.uid)
+      .where('createdAt', '>=', sevenAgo.toISOString())
+      .orderBy('createdAt', 'desc').get()
+
+    const logs = snap.docs.map(d => d.data())
+    const avg = (arr, key) => {
+      const vals = arr.map(l => Number(l[key] || 0)).filter(v => v > 0)
+      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+    }
+
+    res.json({
+      avgSteps:             Math.round(avg(logs, 'stepsToday')),
+      avgSleepHours:        Math.round(avg(logs, 'sleepProxyHours') * 10) / 10,
+      avgGpsEntropy:        Math.round(avg(logs, 'gpsEntropy') * 10) / 10,
+      avgStepsDeviation:    Math.round(avg(logs, 'stepsDeviationScore') * 100) / 100,
+      avgSleepDeviation:    Math.round(avg(logs, 'sleepDeviationScore') * 100) / 100,
+      avgGpsDeviation:      Math.round(avg(logs, 'gpsDeviationScore') * 100) / 100,
+      checkinRate:          logs.length ? logs.filter(l => l.checkinCompleted).length / logs.length : 0,
+      daysLogged:           logs.length,
+      latest:               logs[0] || null,
+    })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // GET /api/passive/today/:uid
 router.get('/today/:uid', generalLimiter, verifyToken, async (req, res) => {
   try {

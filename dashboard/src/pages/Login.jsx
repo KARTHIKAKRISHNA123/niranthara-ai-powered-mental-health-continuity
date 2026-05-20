@@ -18,7 +18,7 @@ export default function Login() {
     try {
       await login(email, password)
       nav('/dashboard')
-    } catch (err) {
+    } catch {
       setError('Invalid email or password. Ensure you have clinician access.')
     } finally {
       setLoading(false)
