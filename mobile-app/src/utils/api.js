@@ -6,12 +6,16 @@ import NetInfo from '@react-native-community/netinfo';
 // ── IMPORTANT: Change this IP to your machine's local IP when testing on a physical device.
 // For Android Emulator:  http://10.0.2.2:5000/api
 // For iOS Simulator:     http://localhost:5000/api
-// For Physical Device:   http://<YOUR_WIFI_IP>:5000/api  (e.g. http://192.168.1.10:5000/api)
-const BASE_URL = 'http://10.162.79.36:5000/api';
+// For Physical Device:   http://<YOUR_WIFI_IP>:5000/api  (run: ipconfig → find IPv4)
+//
+// Current machine IPs (run ipconfig to verify which one your phone reaches):
+//   10.140.84.36  ← use this if phone is on institute WiFi
+//   192.168.70.1  ← use this if phone is on a hotspot
+const BASE_URL = 'http://192.168.70.1:5000/api';
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000, // 30s — Gemma 4B can take up to 5–10s to respond
+  timeout: 8000, // Reduced from 30s → 8s so failures show quickly, not a 30s white screen
 });
 
 import { auth } from './firebase';

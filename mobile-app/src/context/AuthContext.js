@@ -24,6 +24,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // Safety timeout — if Firebase or backend hangs, show login after 5s max
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     // Listen for Firebase Auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -40,10 +45,11 @@ export const AuthProvider = ({ children }) => {
       } else {
         setDbUser(null);
       }
+      clearTimeout(safetyTimer);
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => { unsubscribe(); clearTimeout(safetyTimer); };
   }, []);
 
   const login = async (email, password) => {

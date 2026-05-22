@@ -21,6 +21,7 @@
   const clinicianRoutes = require('./routes/clinicianRoutes')
   const passiveRoutes   = require('./routes/passiveRoutes')
   const riskRoutes      = require('./routes/riskRoutes')
+  const biometricRoutes = require('./routes/biometricRoutes')
 
   app.use('/api/auth',      authRoutes)
   app.use('/api/mood',      moodRoutes)
@@ -29,6 +30,7 @@
   app.use('/api/jitai',     jitaiRoutes)
   app.use('/api/clinician', clinicianRoutes)
   app.use('/api/passive',   passiveRoutes)
+  app.use('/api/passive',   biometricRoutes)   // /api/passive/biometric-sync
   app.use('/api/risk',      riskRoutes)
 
   // Health

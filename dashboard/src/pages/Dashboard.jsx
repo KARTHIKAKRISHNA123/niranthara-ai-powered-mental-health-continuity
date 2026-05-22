@@ -1,10 +1,54 @@
 // dashboard/src/pages/Dashboard.jsx
 // Patient list sorted by XGBoost risk_score — real-time Firestore onSnapshot
+// RTCFR: no emojis, Feather-equivalent SVG nav icons, .nav-item CSS class
 
 import { useNavigate } from 'react-router-dom'
 import { useAuth }     from '../context/AuthContext'
 import { usePatients, useAlerts } from '../hooks/usePatients'
 import { RiskBadge, CrisisBanner, PatientCard } from '../components/components'
+
+// ─── Nav icon atoms ───────────────────────────────────────────────────────────
+function IconClipboard() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="2" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="12" y2="16" />
+    </svg>
+  )
+}
+
+function IconBell() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  )
+}
+
+function IconLogOut() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
+// ─── Nav items config ─────────────────────────────────────────────────────────
+const NAV_ITEMS = [
+  { label: 'Patients', path: '/dashboard', Icon: IconClipboard },
+  { label: 'Alerts',   path: '/alerts',    Icon: IconBell },
+]
 
 export default function Dashboard() {
   const { clinician, logout } = useAuth()
@@ -17,47 +61,69 @@ export default function Dashboard() {
     return acc
   }, {})
 
+  const unresolvedCount = alerts.filter(a => !a.resolved).length
+
   return (
     <div className="dashboard-layout">
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <aside className="sidebar">
         <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--sp-xl)' }}>
           <img src="/logo.png" alt="Niranthara Logo" style={{ width: 40, height: 'auto' }} />
           <div>Niranth<span>ara</span></div>
         </div>
+
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-          {[
-            { label: '📋 Patients',  path: '/dashboard' },
-            { label: '🔔 Alerts',    path: '/alerts',   badge: alerts.filter(a => !a.resolved).length },
-          ].map(({ label, path, badge }) => (
-            <button key={path} onClick={() => nav(path)} style={{ textAlign: 'left', background: window.location.pathname === path ? 'var(--rose-light)' : 'transparent', color: window.location.pathname === path ? 'var(--rose-dark)' : 'var(--warm-gray)', border: 'none', padding: '10px var(--sp-md)', borderRadius: 'var(--r-sm)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>{label}</span>
-              {badge > 0 && <span style={{ background: 'var(--alert)', color: 'white', borderRadius: 'var(--r-pill)', padding: '1px 7px', fontSize: 11 }}>{badge}</span>}
-            </button>
-          ))}
+          {NAV_ITEMS.map(({ label, path, Icon }) => {
+            const active = window.location.pathname === path
+            const badge  = label === 'Alerts' ? unresolvedCount : 0
+            return (
+              <button
+                key={path}
+                onClick={() => nav(path)}
+                className={`nav-item${active ? ' active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon />
+                <span style={{ flex: 1 }}>{label}</span>
+                {badge > 0 && (
+                  <span className="nav-badge">{badge}</span>
+                )}
+              </button>
+            )
+          })}
         </nav>
+
         <div style={{ borderTop: '1px solid var(--rose-light)', paddingTop: 'var(--sp-lg)' }}>
-          <div style={{ fontSize: 13, color: 'var(--warm-gray)', marginBottom: 8 }}>{clinician?.name || clinician?.email}</div>
-          <button className="btn-ghost" onClick={logout} style={{ width: '100%', fontSize: 12 }}>Sign Out</button>
+          <div style={{ fontSize: 13, color: 'var(--warm-gray)', marginBottom: 8, paddingLeft: 4 }}>
+            {clinician?.name || clinician?.email}
+          </div>
+          <button
+            className="nav-item"
+            onClick={logout}
+            style={{ width: '100%', fontSize: 12, gap: 8 }}
+          >
+            <IconLogOut />
+            Sign Out
+          </button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* ── Main ── */}
       <main className="main-content">
         <CrisisBanner alerts={alerts} onView={() => nav('/alerts')} />
 
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 'var(--sp-xl)' }}>
           <h1 className="page-title" style={{ marginBottom: 0 }}>Patients</h1>
-          <div className="muted" style={{ textAlign: 'right' }}>
-            Real-time • Sorted by XGBoost risk score
+          <div className="muted mono" style={{ textAlign: 'right', fontSize: 11 }}>
+            Real-time · Sorted by XGBoost risk score
           </div>
         </div>
 
-        {/* Risk summary cards */}
+        {/* Risk summary tiles */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'var(--sp-lg)', marginBottom: 'var(--sp-xl)' }}>
-          {['crisis','high','moderate','low'].map(level => (
-            <div key={level} className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontFamily: 'var(--font-display)', fontWeight: 300, color: `var(--risk-${level})` }}>
+          {['crisis', 'high', 'moderate', 'low'].map(level => (
+            <div key={level} className="stat-tile">
+              <div className="stat-number" style={{ color: `var(--risk-${level})` }}>
                 {riskCounts[level] || 0}
               </div>
               <RiskBadge level={level} />
@@ -66,14 +132,19 @@ export default function Dashboard() {
         </div>
 
         {/* Patient list */}
-        <div className="card" style={{ padding: 0 }}>
-          <div style={{ padding: 'var(--sp-lg) var(--sp-xl)', borderBottom: '1px solid var(--rose-light)', fontWeight: 500 }}>
-            All Patients ({patients.length})
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: 'var(--sp-lg) var(--sp-xl)', borderBottom: '1px solid var(--rose-light)', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>All Patients</span>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--warm-gray)' }}>{patients.length}</span>
           </div>
           {loading ? (
-            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>Loading patients…</div>
+            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>
+              Loading patients…
+            </div>
           ) : patients.length === 0 ? (
-            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>No patients assigned yet</div>
+            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>
+              No patients assigned yet
+            </div>
           ) : (
             patients.map(p => <PatientCard key={p.id} patient={p} />)
           )}

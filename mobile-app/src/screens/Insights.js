@@ -56,19 +56,28 @@ function MiniChart({ data, color, height = 90, label }) {
 }
 
 // ─── SHAP Factor Card ─────────────────────────────────────────────────────────
+import { Feather } from '@expo/vector-icons';
+
 function ShapCard({ factor, index }) {
-  const icons = ['🔴', '🟠', '🟡'];
+  const dotColors = [COLORS.roseDark, COLORS.rose, COLORS.lavender];
+  const dotColor  = dotColors[index] || COLORS.warmGray;
   return (
     <View style={styles.shapCard}>
-      <Text style={styles.shapRank}>{icons[index] || '⚪'}</Text>
+      <View style={[styles.shapRankDot, { backgroundColor: dotColor }]} />
       <View style={styles.shapBody}>
         <Text style={styles.shapFactor}>{factor.label || factor}</Text>
         {factor.value !== undefined && (
           <View style={styles.shapBar}>
-            <View style={[styles.shapBarFill, { width: `${Math.min(factor.value * 100, 100)}%` }]} />
+            <View style={[styles.shapBarFill, {
+              width: `${Math.min(factor.value * 100, 100)}%`,
+              backgroundColor: dotColor,
+            }]} />
           </View>
         )}
       </View>
+      <Text style={styles.shapPct}>
+        {factor.value !== undefined ? `${(factor.value * 100).toFixed(0)}%` : ''}
+      </Text>
     </View>
   );
 }
@@ -297,6 +306,8 @@ const styles = StyleSheet.create({
 
   // SHAP
   shapSubtitle: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.warmGray, marginBottom: SPACING.md },
+  shapRankDot: { width: 9, height: 9, borderRadius: 5, marginTop: 4 },
+  shapPct: { fontFamily: FONTS.medium, fontSize: 11, color: COLORS.warmGray },
   shapCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -305,7 +316,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(44,40,38,0.06)',
   },
-  shapRank: { fontSize: 20 },
+  shapRank: { fontSize: 20, display: 'none' },
   shapBody: { flex: 1 },
   shapFactor: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: 6 },
   shapBar: {

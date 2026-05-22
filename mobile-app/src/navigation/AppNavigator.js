@@ -1,35 +1,24 @@
-// src/navigation/AppNavigator.js — v2 with navigation responsiveness fixes
-// Fixes:
-//   1. tabBarHideOnKeyboard: prevents layout shifts when keyboard is open
-//   2. Increased height + paddingBottom: prevents gesture-nav-bar overlap eating tap area
-//   3. pressColor/pressOpacity: gives immediate visual feedback on tap
-//   4. tabBarButton hitSlop: expands invisible touch target by 8px on all sides
-//   5. tabBarAllowFontScaling: false — prevents text resize breaking layout on accessibility settings
+// src/navigation/AppNavigator.js — Niranthara v2
+// RTCFR: "Chat" → "Care" (clinical signal), 48px touch targets, pill active indicator,
+//        hitSlop expansion, keyboard-safe layout, no emojis, smooth stack transitions
 
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 
-import { COLORS, FONTS } from '../theme/theme';
+import { COLORS, FONTS, RADIUS } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
 
-// Auth
-import LoginScreen      from '../screens/Login';
-import SignupScreen     from '../screens/Signup';
-
-// Onboarding
-import OnboardingScreen from '../screens/Onboarding';
-
-// Main tab screens
-import HomeScreen    from '../screens/Home';
-import JournalScreen from '../screens/Journal';
-import ChatScreen    from '../screens/Chat';
-import CycleScreen   from '../screens/Cycle';
-
-// Stack-only screens
+import LoginScreen            from '../screens/Login';
+import SignupScreen           from '../screens/Signup';
+import OnboardingScreen       from '../screens/Onboarding';
+import HomeScreen             from '../screens/Home';
+import JournalScreen          from '../screens/Journal';
+import ChatScreen             from '../screens/Chat';
+import CycleScreen            from '../screens/Cycle';
 import InsightsScreen         from '../screens/Insights';
 import CBTReframeScreen       from '../screens/interventions/CBTReframe';
 import SomaticBreathingScreen from '../screens/interventions/SomaticBreathing';
@@ -37,34 +26,40 @@ import SomaticBreathingScreen from '../screens/interventions/SomaticBreathing';
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-const TAB_ICONS = {
+const TAB_HEIGHT  = Platform.OS === 'ios' ? 60 : 64;
+const TAB_PAD_BTM = Platform.OS === 'ios' ? 8  : 12;
+const TAB_PAD_TOP = 8;
+
+const TAB_ICON = {
   Home:    'home',
   Journal: 'edit-3',
   Chat:    'message-circle',
   Cycle:   'moon',
 };
 
-// On Android with gesture nav bar, the system eats ~28-34px at the bottom.
-// We add extra paddingBottom to ensure the tab label is never clipped.
-const TAB_HEIGHT        = Platform.OS === 'ios' ? 60 : 64;
-const TAB_PADDING_BTM   = Platform.OS === 'ios' ? 8  : 10;
-const TAB_PADDING_TOP   = 8;
+const TAB_LABEL = {
+  Home:    'Home',
+  Journal: 'Journal',
+  Chat:    'Care',    // renamed: clinical intent
+  Cycle:   'Cycle',
+};
 
 function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        // ── Icon ────────────────────────────────────────────────────────────
-        tabBarIcon: ({ color, size }) => (
-          <Feather name={TAB_ICONS[route.name] || 'circle'} size={size} color={color} />
+        tabBarHideOnKeyboard: true,
+
+        tabBarIcon: ({ color, focused }) => (
+          <View style={[ts.iconWrap, focused && ts.iconActive]}>
+            <Feather name={TAB_ICON[route.name] || 'circle'} size={22} color={color} />
+          </View>
         ),
-        // ── Colors ──────────────────────────────────────────────────────────
+
         tabBarActiveTintColor:   COLORS.roseDark,
         tabBarInactiveTintColor: COLORS.warmGray,
-        // ── Hide bar when keyboard is open (prevents layout shift) ──────────
-        tabBarHideOnKeyboard: true,
-        // ── Style ───────────────────────────────────────────────────────────
+
         tabBarStyle: {
           backgroundColor: COLORS.warmWhite,
           borderTopColor:  COLORS.roseLight,
@@ -72,24 +67,28 @@ function MainTabs() {
           elevation:       0,
           shadowOpacity:   0,
           height:          TAB_HEIGHT,
-          paddingBottom:   TAB_PADDING_BTM,
-          paddingTop:      TAB_PADDING_TOP,
+          paddingBottom:   TAB_PAD_BTM,
+          paddingTop:      TAB_PAD_TOP,
         },
+
         tabBarLabelStyle: {
-          fontFamily:           FONTS.medium,
-          fontSize:             12,
-          includeFontPadding:   false,
+          fontFamily:         FONTS.medium,
+          fontSize:           11,
+          includeFontPadding: false,
         },
         tabBarAllowFontScaling: false,
-        // ── Button-level touch improvements ────────────────────────────────
+
         tabBarButton: (props) => {
           const { children, onPress, onLongPress, style, accessibilityRole, accessibilityState } = props;
-          const { TouchableOpacity } = require('react-native');
           return (
             <TouchableOpacity
-              {...{ onPress, onLongPress, style, accessibilityRole, accessibilityState }}
-              activeOpacity={0.65}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              style={[style, ts.tabBtn]}
+              accessibilityRole={accessibilityRole}
+              accessibilityState={accessibilityState}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             >
               {children}
             </TouchableOpacity>
@@ -97,10 +96,10 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home"    component={HomeScreen}    options={{ tabBarLabel: 'Home' }} />
-      <Tab.Screen name="Journal" component={JournalScreen} options={{ tabBarLabel: 'Journal' }} />
-      <Tab.Screen name="Chat"    component={ChatScreen}    options={{ tabBarLabel: 'Chat' }} />
-      <Tab.Screen name="Cycle"   component={CycleScreen}   options={{ tabBarLabel: 'Cycle' }} />
+      <Tab.Screen name="Home"    component={HomeScreen}    options={{ tabBarLabel: TAB_LABEL.Home,    tabBarAccessibilityLabel: 'Home' }} />
+      <Tab.Screen name="Journal" component={JournalScreen} options={{ tabBarLabel: TAB_LABEL.Journal, tabBarAccessibilityLabel: 'Journal' }} />
+      <Tab.Screen name="Chat"    component={ChatScreen}    options={{ tabBarLabel: TAB_LABEL.Chat,    tabBarAccessibilityLabel: 'Care' }} />
+      <Tab.Screen name="Cycle"   component={CycleScreen}   options={{ tabBarLabel: TAB_LABEL.Cycle,   tabBarAccessibilityLabel: 'Cycle' }} />
     </Tab.Navigator>
   );
 }
@@ -111,7 +110,14 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown:       false,
+          animation:         'slide_from_right',
+          animationDuration: 300,
+          contentStyle:      { backgroundColor: COLORS.cream },
+        }}
+      >
         {!currentUser ? (
           <>
             <Stack.Screen name="Login"  component={LoginScreen} />
@@ -121,9 +127,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         ) : (
           <>
-            {/* MainTabs is the root authenticated screen */}
             <Stack.Screen name="MainTabs"         component={MainTabs} />
-            {/* All screens that need a back button go here as stack screens */}
             <Stack.Screen name="Insights"         component={InsightsScreen} />
             <Stack.Screen name="SomaticBreathing" component={SomaticBreathingScreen} />
             <Stack.Screen name="CBTReframe"       component={CBTReframeScreen} />
@@ -133,3 +137,23 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+const ts = StyleSheet.create({
+  tabBtn: {
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    minHeight:      48,
+  },
+  iconWrap: {
+    width:          36,
+    height:         28,
+    alignItems:     'center',
+    justifyContent: 'center',
+    borderRadius:   RADIUS.pill,
+  },
+  iconActive: {
+    backgroundColor: COLORS.roseLight,
+    width:           52,
+  },
+});
