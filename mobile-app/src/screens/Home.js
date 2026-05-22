@@ -38,14 +38,14 @@ function RiskRing({ score }) {
   }, [score]);
 
   const strokeDash = animScore.interpolate({
-    inputRange:  [0, 1],
+    inputRange: [0, 1],
     outputRange: [`0 ${circumference}`, `${circumference} ${circumference}`],
   });
 
   const rs = score >= 0.80 ? RISK_STYLES.crisis
-           : score >= 0.60 ? RISK_STYLES.high
-           : score >= 0.30 ? RISK_STYLES.moderate
-           : RISK_STYLES.low;
+    : score >= 0.60 ? RISK_STYLES.high
+      : score >= 0.30 ? RISK_STYLES.moderate
+        : RISK_STYLES.low;
 
   const label = score >= 0.80 ? 'Crisis' : score >= 0.60 ? 'High' : score >= 0.30 ? 'Moderate' : 'Low';
 
@@ -91,18 +91,18 @@ function SuppressionArc({ divergenceScore = 0 }) {
   }, [divergenceScore]);
 
   const arcColor = divergenceScore > 0.5 ? COLORS.rose
-                 : divergenceScore > 0.2 ? COLORS.warning
-                 : COLORS.sage;
+    : divergenceScore > 0.2 ? COLORS.warning
+      : COLORS.sage;
 
   const label = divergenceScore > 0.5 ? 'Suppression detected'
-              : divergenceScore > 0.2 ? 'Slight divergence'
-              : 'Congruent';
+    : divergenceScore > 0.2 ? 'Slight divergence'
+      : 'Congruent';
 
   const labelColor = divergenceScore > 0.5 ? COLORS.roseDark
-                   : divergenceScore > 0.2 ? '#8B5E1A'
-                   : COLORS.sageDark;
+    : divergenceScore > 0.2 ? '#8B5E1A'
+      : COLORS.sageDark;
 
-  const statedWidth   = `${Math.max(30, (1 - divergenceScore) * 100)}%`;
+  const statedWidth = `${Math.max(30, (1 - divergenceScore) * 100)}%`;
   const expressedWidth = `${Math.max(30, divergenceScore > 0.2 ? (1 - divergenceScore * 0.6) * 100 : 90)}%`;
 
   return (
@@ -141,19 +141,19 @@ function ShapNarrativeCard({ riskScore, topFactors }) {
   }, []);
 
   const rs = riskScore >= 0.80 ? RISK_STYLES.crisis
-           : riskScore >= 0.60 ? RISK_STYLES.high
-           : riskScore >= 0.30 ? RISK_STYLES.moderate
-           : RISK_STYLES.low;
+    : riskScore >= 0.60 ? RISK_STYLES.high
+      : riskScore >= 0.30 ? RISK_STYLES.moderate
+        : RISK_STYLES.low;
 
   const headline = riskScore >= 0.80 ? 'You are not alone right now.'
-                 : riskScore >= 0.60 ? 'Your system is under stress.'
-                 : riskScore >= 0.30 ? 'A few signals are shifting.'
-                 : 'Your patterns look steady.';
+    : riskScore >= 0.60 ? 'Your system is under stress.'
+      : riskScore >= 0.30 ? 'A few signals are shifting.'
+        : 'Your patterns look steady.';
 
   const iconName = riskScore >= 0.80 ? 'alert-triangle'
-                 : riskScore >= 0.60 ? 'alert-circle'
-                 : riskScore >= 0.30 ? 'activity'
-                 : 'check-circle';
+    : riskScore >= 0.60 ? 'alert-circle'
+      : riskScore >= 0.30 ? 'activity'
+        : 'check-circle';
 
   const narrative = buildNarrative(riskScore, topFactors || []);
 
@@ -212,8 +212,8 @@ function buildNarrative(score, factors) {
 
 // ─── Baseline Stat ────────────────────────────────────────────────────────────
 function BaselineStat({ iconName, label, value, baseline, unit = '' }) {
-  const deviation  = baseline > 0 ? (value - baseline) / baseline : 0;
-  const isGood     = Math.abs(deviation) < 0.2;
+  const deviation = baseline > 0 ? (value - baseline) / baseline : 0;
+  const isGood = Math.abs(deviation) < 0.2;
   const statusColor = isGood ? COLORS.sage : deviation < -0.2 ? COLORS.warning : COLORS.alert;
 
   return (
@@ -239,7 +239,7 @@ function HrvArc({ deviation }) {
   const R = 34, stroke = 6;
   const circumference = 2 * Math.PI * R;
   const filled = circumference * Math.min(deviation || 0, 1);
-  const color  = deviation > 0.4 ? COLORS.alert : deviation > 0.2 ? COLORS.warning : COLORS.sage;
+  const color = deviation > 0.4 ? COLORS.alert : deviation > 0.2 ? COLORS.warning : COLORS.sage;
   return (
     <Svg width={80} height={80} viewBox="0 0 80 80">
       <Circle cx="40" cy="40" r={R} stroke="rgba(44,40,38,0.08)" strokeWidth={stroke} fill="none" />
@@ -261,7 +261,7 @@ function HrvArc({ deviation }) {
 // ─── SmartWatch Card ──────────────────────────────────────────────────────────
 function SmartWatchCard({ uid }) {
   const [watchData, setWatchData] = useState(null);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!uid) return;
@@ -301,8 +301,8 @@ function SmartWatchCard({ uid }) {
             <Text style={s.watchMetaLabel}>HRV DEVIATION</Text>
             <Text style={s.watchMetaValue}>
               {watchData?.hrvDeviation > 0.4 ? 'Critically low'
-               : watchData?.hrvDeviation > 0.2 ? 'Slightly low'
-               : 'Within baseline'}
+                : watchData?.hrvDeviation > 0.2 ? 'Slightly low'
+                  : 'Within baseline'}
             </Text>
             <Text style={s.watchMetaSub}>Measured against your 30-day personal baseline</Text>
           </View>
@@ -337,9 +337,9 @@ function QuickTile({ iconName, label, sub, onPress, a11y }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const { dbUser, currentUser, logout } = useAuth();
-  const [data, setData]       = useState({ riskScore: 0, avgMood: 3, topFactors: [], moodSentimentDivergence: 0 });
+  const [data, setData] = useState({ riskScore: 0, avgMood: 3, topFactors: [], moodSentimentDivergence: 0 });
   const [passive, setPassive] = useState({ steps: 0, stepsBaseline: 0, sleepHours: 0, sleepBaseline: 0 });
-  const [cycle, setCycle]     = useState({ currentDay: 1, cycleLength: 28, vulnerabilityScore: 0 });
+  const [cycle, setCycle] = useState({ currentDay: 1, cycleLength: 28, vulnerabilityScore: 0 });
   const [refreshing, setRefreshing] = useState(false);
 
   const anim0 = useRef(new Animated.Value(0)).current;
@@ -377,7 +377,7 @@ export default function HomeScreen({ navigation }) {
         api.get(`/cycle/today/${currentUser.uid}`).catch(() => ({ data: null })),
       ]);
       if (monthRes.data?.aggregates) setData(monthRes.data.aggregates);
-      if (passRes.data)  setPassive(passRes.data);
+      if (passRes.data) setPassive(passRes.data);
       if (cycleRes.data) setCycle(cycleRes.data);
     } catch (e) { console.warn('Home fetch offline:', e.message); }
   };
@@ -385,13 +385,13 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => { fetchData(); }, [currentUser]);
   const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
 
-  const riskScore  = data.riskScore || data.avgRiskScore || 0;
+  const riskScore = data.riskScore || data.avgRiskScore || 0;
   const topFactors = data.topFactors || [];
   const divergence = data.moodSentimentDivergence || 0;
-  const firstName  = dbUser?.name?.split(' ')[0] || currentUser?.displayName?.split(' ')[0] || 'there';
+  const firstName = dbUser?.name?.split(' ')[0] || currentUser?.displayName?.split(' ')[0] || 'there';
 
   const hour = new Date().getHours();
-  const greeting    = hour < 11 ? `Good morning, ${firstName}` : hour < 17 ? `Hello, ${firstName}` : hour < 21 ? `Good evening, ${firstName}` : `Rest well, ${firstName}`;
+  const greeting = hour < 11 ? `Good morning, ${firstName}` : hour < 17 ? `Hello, ${firstName}` : hour < 21 ? `Good evening, ${firstName}` : `Rest well, ${firstName}`;
   const greetingSub = hour < 11 ? 'Your daily check-in takes 30 seconds' : hour < 17 ? 'How has your day been unfolding?' : hour < 21 ? 'A quiet moment for yourself' : 'Tomorrow begins a new record';
 
   return (
@@ -513,9 +513,9 @@ export default function HomeScreen({ navigation }) {
 
         {/* Quick nav */}
         <View style={s.quickRow}>
-          <QuickTile iconName="edit-3"        label="Journal" sub="Log mood"   onPress={() => goToTab('Journal')} a11y="Go to Journal" />
-          <QuickTile iconName="message-circle" label="Care"    sub="Talk now"  onPress={() => goToTab('Chat')}    a11y="Go to Care" />
-          <QuickTile iconName="moon"           label="Cycle"   sub="View phase" onPress={() => goToTab('Cycle')}  a11y="Go to Cycle" />
+          <QuickTile iconName="edit-3" label="Journal" sub="Log mood" onPress={() => goToTab('Journal')} a11y="Go to Journal" />
+          <QuickTile iconName="message-circle" label="Care" sub="Talk now" onPress={() => goToTab('Chat')} a11y="Go to Care" />
+          <QuickTile iconName="moon" label="Cycle" sub="View phase" onPress={() => goToTab('Cycle')} a11y="Go to Cycle" />
         </View>
 
         {/* Sign out */}
@@ -530,84 +530,84 @@ export default function HomeScreen({ navigation }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:    { flex: 1, backgroundColor: COLORS.cream },
+  safe: { flex: 1, backgroundColor: COLORS.cream },
   content: { paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, paddingBottom: SPACING.xxxl },
 
-  header:       { flexDirection: 'row', alignItems: 'flex-start', marginBottom: SPACING.xxl },
-  greeting:     { fontFamily: FONTS.display, fontSize: 34, color: COLORS.charcoal, lineHeight: 40 },
-  greetingSub:  { fontFamily: FONTS.body, fontSize: 13, color: COLORS.warmGray, marginTop: 5 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: SPACING.xxl },
+  greeting: { fontFamily: FONTS.display, fontSize: 34, color: COLORS.charcoal, lineHeight: 40 },
+  greetingSub: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.warmGray, marginTop: 5 },
   insightsPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.roseLight, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 4 },
   insightsPillText: { fontFamily: FONTS.medium, fontSize: 12, color: COLORS.roseDark },
 
-  dualCard:   { flexDirection: 'row', backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)', overflow: 'hidden' },
-  ringCell:   { flex: 1, alignItems: 'center', paddingVertical: SPACING.xl, paddingHorizontal: SPACING.md },
-  ringLabel:  { fontFamily: FONTS.body, fontSize: 9, color: COLORS.warmGray, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: SPACING.md },
-  ringDivider:{ width: 1, backgroundColor: 'rgba(44,40,38,0.07)', marginVertical: SPACING.xl },
-  ringWrap:   { alignItems: 'center' },
-  riskLabel:  { fontFamily: FONTS.medium, fontSize: 11, marginTop: 6 },
+  dualCard: { flexDirection: 'row', backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)', overflow: 'hidden' },
+  ringCell: { flex: 1, alignItems: 'center', paddingVertical: SPACING.xl, paddingHorizontal: SPACING.md },
+  ringLabel: { fontFamily: FONTS.body, fontSize: 9, color: COLORS.warmGray, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: SPACING.md },
+  ringDivider: { width: 1, backgroundColor: 'rgba(44,40,38,0.07)', marginVertical: SPACING.xl },
+  ringWrap: { alignItems: 'center' },
+  riskLabel: { fontFamily: FONTS.medium, fontSize: 11, marginTop: 6 },
 
   statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
-  stat:     { flex: 1, backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
+  stat: { flex: 1, backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
   statIcon: { width: 32, height: 32, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  statValue:{ fontFamily: FONTS.medium, fontSize: 15, color: COLORS.charcoal },
-  statLabel:{ fontFamily: FONTS.body, fontSize: 9.5, color: COLORS.warmGray, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statDev:  { fontFamily: FONTS.medium, fontSize: 10, marginTop: 3 },
+  statValue: { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.charcoal },
+  statLabel: { fontFamily: FONTS.body, fontSize: 9.5, color: COLORS.warmGray, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDev: { fontFamily: FONTS.medium, fontSize: 10, marginTop: 3 },
 
   // SHAP card
-  shapCard:      { borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
-  shapHeader:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  shapIconBox:   { width: 36, height: 36, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  shapHeadline:  { fontFamily: FONTS.medium, fontSize: 15, lineHeight: 21, flex: 1 },
+  shapCard: { borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
+  shapHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  shapIconBox: { width: 36, height: 36, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  shapHeadline: { fontFamily: FONTS.medium, fontSize: 15, lineHeight: 21, flex: 1 },
   shapNarrative: { fontFamily: FONTS.body, fontSize: 13, lineHeight: 20 },
-  shapFactors:   { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: 'rgba(44,40,38,0.08)' },
+  shapFactors: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: 'rgba(44,40,38,0.08)' },
   shapFactorsLabel: { fontFamily: FONTS.body, fontSize: 9, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: SPACING.sm, opacity: 0.7 },
   shapFactorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 6 },
-  shapDot:       { width: 7, height: 7, borderRadius: 4 },
-  shapFactorText:{ fontFamily: FONTS.body, fontSize: 12, flex: 1 },
-  shapFooter:    { fontFamily: FONTS.body, fontSize: 9, marginTop: SPACING.sm, opacity: 0.5 },
+  shapDot: { width: 7, height: 7, borderRadius: 4 },
+  shapFactorText: { fontFamily: FONTS.body, fontSize: 12, flex: 1 },
+  shapFooter: { fontFamily: FONTS.body, fontSize: 9, marginTop: SPACING.sm, opacity: 0.5 },
 
   // Suppression arc
-  suppressionCard:   { backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
-  suppressionInner:  {},
-  suppressionHeading:{ fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: SPACING.md },
-  suppressionRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
-  arcSide:   { flex: 1, gap: 5 },
-  arcTag:    { fontFamily: FONTS.body, fontSize: 8.5, color: COLORS.warmGray, letterSpacing: 1, textTransform: 'uppercase' },
-  arcTrack:  { height: 6, borderRadius: RADIUS.pill, overflow: 'hidden' },
-  arcFill:   { height: '100%', borderRadius: RADIUS.pill },
+  suppressionCard: { backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
+  suppressionInner: {},
+  suppressionHeading: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: SPACING.md },
+  suppressionRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
+  arcSide: { flex: 1, gap: 5 },
+  arcTag: { fontFamily: FONTS.body, fontSize: 8.5, color: COLORS.warmGray, letterSpacing: 1, textTransform: 'uppercase' },
+  arcTrack: { height: 6, borderRadius: RADIUS.pill, overflow: 'hidden' },
+  arcFill: { height: '100%', borderRadius: RADIUS.pill },
   arcGapDot: { width: 8, height: 8, borderRadius: 4 },
   suppressionStatus: { fontFamily: FONTS.body, fontSize: 12 },
 
   // SmartWatch
-  watchCard:      { borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
+  watchCard: { borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
   watchHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 4 },
-  watchDot:       { width: 7, height: 7, borderRadius: 4 },
-  watchTitle:     { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.charcoal, flex: 1 },
-  watchStatus:    { fontFamily: FONTS.body, fontSize: 12 },
-  watchSync:      { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray, marginBottom: SPACING.md, paddingLeft: 15 },
-  watchBody:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg, marginTop: SPACING.md },
+  watchDot: { width: 7, height: 7, borderRadius: 4 },
+  watchTitle: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.charcoal, flex: 1 },
+  watchStatus: { fontFamily: FONTS.body, fontSize: 12 },
+  watchSync: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray, marginBottom: SPACING.md, paddingLeft: 15 },
+  watchBody: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg, marginTop: SPACING.md },
   watchMetaLabel: { fontFamily: FONTS.body, fontSize: 9, color: COLORS.warmGray, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   watchMetaValue: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: 3 },
-  watchMetaSub:   { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray },
-  connectBtn:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.rose, borderRadius: RADIUS.md, padding: SPACING.lg, justifyContent: 'center', marginTop: SPACING.md, minHeight: 48 },
+  watchMetaSub: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray },
+  connectBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.rose, borderRadius: RADIUS.md, padding: SPACING.lg, justifyContent: 'center', marginTop: SPACING.md, minHeight: 48 },
   connectBtnText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.warmWhite },
 
   // CTA & JITAI cards
-  checkinCard:   { backgroundColor: COLORS.roseLight, borderRadius: RADIUS.lg, padding: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md, minHeight: 72 },
-  jitaiCard:     { borderRadius: RADIUS.lg, padding: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md, minHeight: 72 },
-  checkinIconBox:{ width: 44, height: 44, borderRadius: RADIUS.md, backgroundColor: COLORS.roseDark + '18', alignItems: 'center', justifyContent: 'center' },
-  jitaiIconBox:  { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  cardTitle:     { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.roseDark, marginBottom: 2 },
-  cardSub:       { fontFamily: FONTS.body, fontSize: 12, color: COLORS.charcoal, lineHeight: 17 },
+  checkinCard: { backgroundColor: COLORS.roseLight, borderRadius: RADIUS.lg, padding: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md, minHeight: 72 },
+  jitaiCard: { borderRadius: RADIUS.lg, padding: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md, minHeight: 72 },
+  checkinIconBox: { width: 44, height: 44, borderRadius: RADIUS.md, backgroundColor: COLORS.roseDark + '18', alignItems: 'center', justifyContent: 'center' },
+  jitaiIconBox: { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.roseDark, marginBottom: 2 },
+  cardSub: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.charcoal, lineHeight: 17 },
 
   // Quick tiles
-  quickRow:      { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
-  quickTile:     { flex: 1, backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, borderWidth: 1, borderColor: 'rgba(44,40,38,0.08)', alignItems: 'center', minHeight: 84 },
+  quickRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
+  quickTile: { flex: 1, backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, borderWidth: 1, borderColor: 'rgba(44,40,38,0.08)', alignItems: 'center', minHeight: 84 },
   quickTileIcon: { width: 38, height: 38, borderRadius: RADIUS.sm, backgroundColor: COLORS.roseLight, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  quickLabel:    { fontFamily: FONTS.medium, color: COLORS.charcoal, fontSize: 12 },
-  quickSub:      { fontFamily: FONTS.body, color: COLORS.warmGray, fontSize: 10, marginTop: 2 },
+  quickLabel: { fontFamily: FONTS.medium, color: COLORS.charcoal, fontSize: 12 },
+  quickSub: { fontFamily: FONTS.body, color: COLORS.warmGray, fontSize: 10, marginTop: 2 },
 
   // Sign out
-  signOut:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingVertical: SPACING.lg, marginTop: SPACING.sm },
+  signOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingVertical: SPACING.lg, marginTop: SPACING.sm },
   signOutText: { fontFamily: FONTS.body, color: COLORS.warmGray, fontSize: 13 },
 });

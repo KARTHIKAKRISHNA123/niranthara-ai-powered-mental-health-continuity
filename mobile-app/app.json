@@ -19,7 +19,11 @@
         "NSLocationWhenInUseUsageDescription": "Niranthara uses your location to measure social activity patterns for personalised mental health support.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Niranthara uses location in the background to track GPS entropy as a passive wellbeing signal.",
         "NSMotionUsageDescription": "Niranthara uses your step count as a passive wellbeing signal to personalise your mental health continuity.",
-        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification",
+          "processing"
+        ]
       }
     },
     "android": {
@@ -72,7 +76,8 @@
         }
       ],
       "expo-background-fetch",
-      "expo-task-manager"
+      "expo-task-manager",
+      "react-native-health-connect"
     ],
     "extra": {
       "eas": {
