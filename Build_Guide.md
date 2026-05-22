@@ -2717,23 +2717,188 @@ export const RADIUS = {
 
 ---
 
-## 28. Future Roadmap: Wearables and Advanced Anomaly Detection
+## 28. Implemented: Personalized LSTM Autoencoder — Behavioral Anomaly Detection
 
-### 1. Autoencoders for Time-Series Anomaly Detection
-While the current system effectively uses XGBoost for risk fusion and dropout prediction, our future architecture will integrate **Deep Autoencoders**.
-- **The Gap:** XGBoost is excellent for structured feature fusion, but mental health decline often manifests as subtle, non-linear deviations in continuous behavioral patterns (e.g., micro-awakenings, irregular activity spikes).
-- **The Solution:** We will train unsupervised Autoencoders on each user's multivariate time-series data. The model will learn the user's "normal" behavioral manifold.
-- **Outcome:** When a user's behavior drifts from this manifold, the reconstruction error will spike. This error will serve as a high-fidelity "Anomaly Score," catching invisible deteriorations days before they trigger standard thresholds.
+> **Status: IMPLEMENTED and LIVE** — `ai-service/models/autoencoder_trainer.py` + `ai-service/routers/anomaly.py`
 
-### 2. Google Health Connect SDK & Smartwatch Integration
-To feed the advanced Autoencoder models, we require higher fidelity data than what a smartphone's internal sensors can reliably provide.
-- **The Gap:** Relying on phone movement (pedometer/accelerometer) and phone screen status (sleep proxy) is susceptible to noise (e.g., user leaves phone on desk).
-- **The Solution:** We will develop a companion application for WearOS using the **Google Health Connect SDK/API**.
-- **Data Points:** This will unlock continuous, clinical-grade telemetry:
-  - Resting Heart Rate (RHR)
-  - Heart Rate Variability (HRV) – a critical biomarker for stress and parasympathetic nervous system function
-  - Granular Sleep Staging (Deep vs. REM vs. Light)
-- **Outcome:** By fusing smartwatch telemetry with NLP conversational sentiment and JITAI receptivity, Niranthara will possess an unprecedented, holistic view of the patient's physiological and psychological state.
+### Architecture
+
+```
+Biometrics + NLP + Mood + Activity + Sleep
+        ↓
+Personalized LSTM Autoencoder (per-user PyTorch model)
+        ↓
+Anomaly Score (reconstruction error 0.0–1.0)
+        ↓
+XGBoost 15-Feature Risk Fusion
+        ↓
+JITAI Intervention + Clinician Alert
+```
+
+### Why Autoencoders > Fixed Thresholds
+
+- **Before:** `IF sleep < 5h THEN risk += 0.2` — population-level, ignores personal baseline
+- **After:** The model learns *Ananya's* normal (7.5h sleep, 72bpm HR, 6500 steps). When her behavior deviates from *her own* manifold, the reconstruction error spikes — catching deterioration **days before** standard thresholds trigger.
+
+### LSTM Autoencoder Design
+
+| Parameter | Value |
+|---|---|
+| Input | 7-day rolling window × 8 signals |
+| Encoder | LSTM(hidden=32, layers=2) → bottleneck(16) |
+| Decoder | repeat bottleneck → LSTM(hidden=32, layers=2) → reconstruct |
+| Loss | MSE(input, reconstruction) |
+| Anomaly Score | `clip((mse - baseline_mse) / (3×baseline_std), 0, 1)` |
+| Training | CPU-only, ~2–5 sec on i5-13450HX |
+
+### 8 Input Signals
+
+| Index | Signal | Source |
+|---|---|---|
+| 0 | sleep_hours | Watch/phone |
+| 1 | heart_rate_normalized | Watch |
+| 2 | steps_normalized | Watch/phone |
+| 3 | mood_score | User input |
+| 4 | sentiment_score | NLP (IndicBERT) |
+| 5 | app_engagement | App metrics |
+| 6 | gps_entropy | Phone |
+| 7 | screen_time_night_ratio | Phone |
+
+### API Endpoints
+
+```bash
+# Train / retrain a user's personalized model
+POST /api/anomaly/train
+{
+  "uid": "user123",
+  "history": [
+    {"sleepHours": 7.2, "heartRate": 72, "steps": 6500, "moodScore": 3.5,
+     "sentimentScore": 0.3, "appEngagement": 0.65, "gpsEntropy": 0.6, "screenTimeNightRatio": 0.1},
+    ...  (up to 30 days)
+  ]
+}
+# Returns: {"status": "trained", "dataPoints": 30, "finalLoss": 0.065, "baselineMse": 0.064}
+
+# Score current 7-day window
+POST /api/anomaly/score
+{
+  "uid": "user123",
+  "window": [...]   # 7 daily records (padded if fewer)
+}
+# Returns: {"anomalyScore": 0.92, "severity": "severe", "topAnomalousSignal": "sleep_hours", "perFeature": {...}}
+
+# Check model readiness
+GET /api/anomaly/status/{uid}
+# Returns: {"modelReady": true, "dataPoints": 30, "trainedAt": "...", "baselineMse": 0.064}
+
+# One-shot demo (no real data needed)
+POST /api/anomaly/demo?uid=demo_user
+# Trains on synthetic data, scores normal vs anomalous window side by side
+```
+
+### Integration with XGBoost (15th Feature)
+
+The `anomalyScore` returned by `/api/anomaly/score` is passed as the **15th feature** to `/api/predict/risk`:
+
+```json
+POST /api/predict/risk
+{
+  "uid": "user123",
+  "moodScore": 1.5,
+  "sleepHours": 3.0,
+  "crisisProbability": 0.3,
+  "anomalyScore": 0.92
+}
+```
+
+XGBoost then fuses all 15 signals. When `anomalyScore` is high, it amplifies the risk score through the learned feature weights — no hardcoding.
+
+### Demo Script
+
+```bash
+# Run standalone demo (no API server needed)
+cd ai-service
+python scripts/demo_anomaly.py
+
+# Expected output:
+# STEP 1: trains in ~2-5 seconds
+# STEP 2: normal window anomalyScore ~0.0-0.4
+# STEP 3: crisis pattern anomalyScore = 1.0
+# Per-feature bar chart showing which signals drove the anomaly
+```
+
+### Model Storage
+
+Each user gets their own model files:
+```
+ai-service/models/user_autoencoders/
+  ├── {uid}.pt            # PyTorch model weights
+  ├── {uid}_scaler.json   # Personal min-max normalization params
+  └── {uid}_meta.json     # Training metadata (baseline_mse, trained_at, etc.)
+```
+
+
+### 2. Smartwatch Integration — Da Fit Abstraction Layer (IMPLEMENTED for Demo)
+
+**Architecture:** Da Fit → Google Fit → Health Connect → React Native → Backend → Autoencoder
+
+This is more architecturally sound than direct BLE firmware integration. The abstraction layer means any Health Connect-compatible device works — today Da Fit, tomorrow Fitbit, Galaxy Watch, Apple Health.
+
+#### Step-by-Step Setup for Demo
+
+**On the Watch / Da Fit App:**
+1. Open the **Da Fit** app on your phone
+2. Tap **Settings → Health Data Sharing**
+3. Enable **Google Fit Sync** (toggle ON)
+4. Grant all permissions when prompted
+5. Wear the watch for 20–30 minutes — data syncs automatically to Google Fit
+
+**In Google Fit:**
+1. Open Google Fit → confirm steps, heart rate, and sleep data are appearing
+2. This is your data source — no smartwatch SDK needed
+
+**In the Niranthara Mobile App (React Native):**
+1. Install: `npm install react-native-health-connect`
+2. Read normalized biometrics:
+   ```javascript
+   import { initialize, requestPermission, readRecords } from 'react-native-health-connect';
+   await initialize();
+   await requestPermission([
+     { accessType: 'read', recordType: 'HeartRate' },
+     { accessType: 'read', recordType: 'Steps' },
+     { accessType: 'read', recordType: 'SleepSession' },
+   ]);
+   const heartRateRecords = await readRecords('HeartRate', { timeRangeFilter: {...} });
+   ```
+3. Send to backend → AI service → autoencoder pipeline:
+   ```javascript
+   await api.post('/api/anomaly/train', {
+     uid: currentUser.uid,
+     history: last30DaysBiometrics,
+   });
+   const { anomalyScore } = await api.post('/api/anomaly/score', {
+     uid: currentUser.uid,
+     window: last7DaysBiometrics,
+   });
+   // Feed anomalyScore into risk prediction
+   const { riskScore } = await api.post('/api/predict/risk', {
+     ...otherFeatures,
+     anomalyScore,
+   });
+   ```
+
+**For Demo (no real watch data needed):**
+```bash
+# Use the built-in demo endpoint — trains and scores with synthetic data instantly
+POST http://localhost:8000/api/anomaly/demo?uid=demo_user
+
+# Or run the demo script directly:
+cd ai-service
+python scripts/demo_anomaly.py
+```
+
+**What to say during presentation:**
+> "Rather than coupling to proprietary smartwatch firmware, we use a Health Connect abstraction layer. This is device-agnostic biometric ingestion — today Da Fit, tomorrow any wearable. The biometric signals train a personalized LSTM autoencoder that learns each user's behavioral manifold. When reconstruction error spikes, Niranthara detects early deterioration days before fixed thresholds would trigger."
 
 ---
 
@@ -2911,3 +3076,64 @@ Since this platform spans multiple services, local models, and cloud infrastruct
 3. **ML Training:** Run the training scripts: `python models/model_trainer.py` and `python models/dropout_trainer.py`.
 
 Once these configuration steps are complete, you can start all 4 services (AI, Backend, Dashboard, Smartwatch) and the Mobile App, and the entire platform will work end-to-end.
+
+---
+
+## 32. Product Redesign & Investor/Judge Presentation Strategy
+
+To elevate Niranthara from a highly functional prototype to a world-class health-AI product that secures instant trust, we make the AI's complex backend intelligence immediately **legible at a glance** inside the user interfaces. Below is the strategic layout and implementation guide for our hero components, key signature moments, and clinical visualizers.
+
+### 1. 5 High-Impact Visual Features (Investor-Facing)
+
+#### 1. The Suppression Signal (Visual Congruence Arc)
+- **The Concept:** Emotional suppression detection (`mood` vs. `sentiment` divergence score) is Niranthara's most unique clinical differentiator. 
+- **The UI Component:** Two concentric, warm-toned arcs on the Home Screen labeled **Stated Mood** (based on standard check-in slider) and **Expressed Emotion** (derived dynamically from journal NLP).
+- **The Magic:** When stated and expressed emotions match, the arcs perfectly overlap. When the user suppresses feelings (e.g., enters mood `5` but types a highly distressed journal entry), a quiet rose-tinted gap opens between the two arcs labeled *"Emotional Congruence Deviation"*. This instantly shows that the AI is detecting what is *unspoken*.
+
+#### 2. The SHAP Clinical Narrative Card
+- **The Concept:** Solves the "black box AI" objection that judges and healthcare regulators routinely raise.
+- **The UI Component:** A clean, natural-language card beneath the Home Screen Risk Ring.
+- **The Magic:** Instead of showing raw math or raw SHAP values, it translates feature importance into clinical explanation: *"Your baseline deviation is elevated today primarily because your language patterns showed 40% more emotional weight than your 30-day baseline, combined with late-night screen time."*
+
+#### 3. The Personal Baseline Timeline
+- **The Concept:** Reinforces our absolute design rule: *Never use fixed population thresholds, always use personal baseline deviation*.
+- **The UI Component:** A 30-day sparkline dashboard with the user's personal baseline represented as a soft, shaded horizontal band.
+- **The Magic:** Shows continuous steps, sleep, and sentiment. When a signal drifts below the personal baseline band, a subtle warning indicator appears. The label reads **"Your Baseline"**, not *"Average"*, proving personalization.
+
+#### 4. Predictive Menstrual Cycle Intelligence Overlay
+- **The Concept:** Uses our PyTorch LSTM model to offer anticipatory care rather than reactive logging.
+- **The UI Component:** A forward-looking card on the Cycle Dashboard that overlays emotional vulnerability trends on top of menstrual phases.
+- **The Magic:** Predicts high-vulnerability windows before they happen: *"Based on historical biometrics and hormonal tracking, a 3-day vulnerability window is predicted to begin in 4 days. Interventions have been pre-scheduled."*
+
+#### 5. Clinician Dashboard Silence Detector (Attrition Prevention)
+- **The Concept:** Addresses the "attrition and loss of follow-up" problem statement.
+- **The UI Component:** An emergency triage timeline gap on the Clinician Dashboard.
+- **The Magic:** If a patient has an elevated XGBoost risk score and goes silent (no check-ins, drop in GPS entropy, zero app opens) for 48+ hours, the dashboard places a dedicated **"Continuity at Risk: Silent Deviation"** alert to prompt immediate clinical outreach.
+
+---
+
+### 2. 3 Signature UI Moments
+
+#### Moment 1: The Initial Risk Fusion Baseline
+- **The Experience:** On completing the onboarding survey and first check-in, the first XGBoost risk score is computed.
+- **The Interaction:** The risk ring on the Home Screen doesn't just render instantly; it animates from `0%` to its calculated score over 1.5 seconds accompanied by a progressive haptic pulse. Below the ring, a smooth caption fades in: *"Niranthara has successfully calibrated to your personal baseline."*
+
+#### Moment 2: Conversational Tone Shift (Suppression Response)
+- **The Experience:** When the AI Chatbot detects a suppression anomaly (`divergence_score > 0.6`) mid-conversation.
+- **The Interaction:** A warm, quiet warning banner appears at the top of the chat: *"It feels like there might be more beneath what you've shared. I'm here to listen."* Simultaneously, the chatbot's generation prompt undergoes a hidden tone-shift—switching from standard validating/coaching style to an open, slower, Rogerian reflective style.
+
+#### Moment 3: The SHAP-Explained Clinician Alert
+- **The Experience:** The moment a patient enters crisis or severe anomaly, sending an alert to the Clinician Dashboard.
+- **The Interaction:** Instead of just a generic red warning dot, the alert expands into a structured 3-line clinical summary detailing *why* the alert was triggered, *which biometrics* were anomalous (e.g., HRV deviation, zero steps), and a direct button to review the decrypted journal timeline.
+
+---
+
+### 3. Emotional Suppression Interaction Patterns
+
+| Option | Interaction Pattern | Primary Target | Strengths |
+|---|---|---|---|
+| **Option A** | **Divergence Arc** (Visual) | Judge & Investor | 5-second "Aha!" moment showing high-tech visual validation. |
+| **Option B** | **Companion Tone Shift** (Conversational) | Patient/User | Extreme emotional safety; user *feels* heard without clinical labels. |
+| **Option C** | **Clinician Signal Card** (Clinical) | Clinician & Regulator | Demonstrates scientific rigor, explainable metrics, and clinical utility. |
+
+> **Recommended Implementation Strategy:** Combine the **Divergence Arc (Option A)** on the Mobile Home Screen for immediate visual punch with the **SHAP Narrative Card (Option C)** to capture technical and clinical credibility. This ensures both "emotionally intelligent" and "clinically rigorous" claims are backed visually within the first 5 seconds of a demo.

@@ -1,5 +1,5 @@
-# models/model_trainer.py — XGBoost training with CPU optimization per Build Guide §20
-# Optimized for i5-13450HX (6 P-cores + 4 E-cores)
+# models/model_trainer.py — XGBoost training with CPU optimization per Build Guide §20 & §28
+# 15-feature fusion: 14 original features + anomaly_behavioral_deviation (LSTM Autoencoder)
 
 # ── Threading limits — MUST be first, before any ML import ──────────────
 import os
@@ -19,13 +19,14 @@ from sklearn.metrics import (
     roc_auc_score, precision_recall_fscore_support
 )
 
-# ── 14-feature vector matching the predict.py router ────────────────────
+# ── 15-feature vector matching the predict.py router ────────────────────────────────────
 FEATURE_ORDER = [
     "mood_score_avg_7d", "sleep_hours_avg_7d", "steps_deviation_score",
     "anxiety_level_avg_7d", "cycle_vulnerability_score", "gps_entropy_deviation_score",
     "journal_sentiment_score", "emotion_distress_score", "crisis_probability",
     "app_engagement_score", "missed_checkins_count", "mood_sentiment_divergence",
     "screen_time_night_ratio", "social_connectivity_score",
+    "anomaly_behavioral_deviation",   # 15th — LSTM Autoencoder reconstruction error
 ]
 
 # P-core count for i5-13450HX — keeps heavy ML on the 6 fast cores
@@ -71,6 +72,9 @@ def generate_synthetic_dataset(n=600, output_path="data/phq9_dataset.csv"):
                 "mood_sentiment_divergence":   np.clip(np.random.normal([0.05, 0.15, 0.3, 0.45][cls], 0.1), 0, 1),
                 "screen_time_night_ratio":     np.clip(np.random.normal([0.05, 0.15, 0.3, 0.5][cls], 0.08), 0, 1),
                 "social_connectivity_score":   np.clip(np.random.normal(1 - base_steps_dev * 0.8, 0.1), 0, 1),
+                # 15th feature — anomaly score correlates with severity (low for normal, high for crisis)
+                "anomaly_behavioral_deviation": np.clip(np.random.normal(
+                    [0.05, 0.2, 0.55, 0.85][cls], 0.12), 0, 1),
                 "depression_severity":         cls
             }
             rows.append(row)

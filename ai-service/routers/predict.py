@@ -1,4 +1,5 @@
-# routers/predict.py — XGBoost 14-feature risk + SHAP per Build Guide §20
+# routers/predict.py — XGBoost 15-feature risk + SHAP per Build Guide §20 & §28
+# 15th feature: anomaly_behavioral_deviation from Personalized LSTM Autoencoder
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ FEATURE_ORDER = [
     "journal_sentiment_score", "emotion_distress_score", "crisis_probability",
     "app_engagement_score", "missed_checkins_count", "mood_sentiment_divergence",
     "screen_time_night_ratio", "social_connectivity_score",
+    "anomaly_behavioral_deviation",   # 15th — LSTM Autoencoder reconstruction error
 ]
 FEATURE_DESCRIPTIONS = {
     "mood_score_avg_7d":           "Average mood score this week",
@@ -32,8 +34,9 @@ FEATURE_DESCRIPTIONS = {
     "app_engagement_score":        "App engagement below personal baseline",
     "missed_checkins_count":       "Missed daily check-ins recently",
     "mood_sentiment_divergence":   "Gap between stated mood and expressed sentiment",
-    "screen_time_night_ratio":     "Late-night phone usage pattern",
-    "social_connectivity_score":   "Social communication patterns",
+    "screen_time_night_ratio":         "Late-night phone usage pattern",
+    "social_connectivity_score":       "Social communication patterns",
+    "anomaly_behavioral_deviation":    "Behavioral anomaly detected (personalized autoencoder)",
 }
 DISTRESS_EMOTION_SCORES = {"sadness": 0.9, "fear": 0.8, "anger": 0.7, "disgust": 0.6}
 
@@ -66,6 +69,9 @@ class RiskRequest(BaseModel):
     moodSentimentDivergence: float = 0.0
     energyLevel:             Optional[float] = 5.0
     passiveLogs:             Optional[List[dict]] = []
+    # 15th feature — from Personalized LSTM Autoencoder (0.0 = no anomaly, 1.0 = extreme)
+    # Defaults to 0.0 for full backward compatibility when autoencoder not yet called
+    anomalyScore:            Optional[float] = 0.0
 
 
 def _build_features(req: RiskRequest) -> np.ndarray:
@@ -87,6 +93,7 @@ def _build_features(req: RiskRequest) -> np.ndarray:
         req.moodSentimentDivergence,
         p_mean("nightScreenMinutes", 0) / max(p_mean("screenTimeMinutes", 1), 1),
         p_mean("socialConnectivityScore", 0.5),
+        float(np.clip(req.anomalyScore or 0.0, 0.0, 1.0)),   # 15th — autoencoder anomaly score
     ]])
 
 
@@ -124,7 +131,7 @@ async def predict_risk(request: RiskRequest):
         "topFactors":   top_factors,
         "confidence":   round(float(risk_proba.max()), 4),
         "allProbs":     {RISK_LEVELS[i]: round(float(p), 4) for i, p in enumerate(risk_proba)},
-        "modelVersion": "xgboost_v2_14features"
+        "modelVersion": "xgboost_v3_15features"
     }
 
 

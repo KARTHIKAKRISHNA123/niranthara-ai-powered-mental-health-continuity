@@ -4,7 +4,7 @@
 
 const cron = require('node-cron');
 const { db } = require('../config/firebase');
-const { sendToDevice } = require('./notificationService');
+const { sendClinicianCrisisAlert } = require('./notificationService');
 
 const CRISIS_PROB_THRESHOLD  = 0.85;
 const HIGH_RISK_THRESHOLD    = 0.70;
@@ -96,16 +96,13 @@ async function _createAlert(uid, user, type, severity, message) {
     lastEscalated: new Date().toISOString(),
   });
 
-  // 3. FCM push to any clinician FCM tokens stored in /clinicians collection
+  // 3. FCM push — look up clinician FCM token from the users collection
   try {
-    const clinicianSnap = await db.collection('clinicians').get();
-    for (const c of clinicianSnap.docs) {
-      const fcmToken = c.data().fcmToken;
+    if (user.assignedClinician) {
+      const clinicianDoc = await db.collection('users').doc(user.assignedClinician).get();
+      const fcmToken     = clinicianDoc.exists ? clinicianDoc.data().fcmToken : null;
       if (fcmToken) {
-        await sendToDevice(fcmToken, {
-          title: severity === 'critical' ? '🚨 Crisis Alert — Niranthara' : '⚠️ Patient Alert — Niranthara',
-          body:  `${user.name || 'A patient'}: ${message}`,
-        });
+        await sendClinicianCrisisAlert(fcmToken, user.name || 'A patient', user.riskScore || 0);
       }
     }
   } catch (fcmErr) {

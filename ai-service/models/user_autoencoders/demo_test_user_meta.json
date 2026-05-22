@@ -1,0 +1,9 @@
+{
+  "uid": "demo_test_user",
+  "data_points": 30,
+  "n_windows": 24,
+  "final_loss": 0.06481,
+  "baseline_mse": 0.064726,
+  "baseline_std": 0.01457,
+  "trained_at": "2026-05-22T01:22:38.022984"
+}

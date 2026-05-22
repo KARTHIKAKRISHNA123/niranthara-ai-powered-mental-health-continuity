@@ -1,4 +1,5 @@
 // routes/moodRoutes.js — Full 8-step NLP pipeline per Build Guide §14
+// Demo-optimised: alert fires at crisisProb > 0.5 OR riskScore > 0.6
 
 const express = require('express')
 const router  = express.Router()
@@ -8,6 +9,7 @@ const verifyToken = require('../middleware/verifyToken')
 const { nlpLimiter, generalLimiter } = require('../middleware/rateLimiter')
 const { encrypt } = require('../utils/encryption')
 const { validateMoodLog } = require('../utils/validators')
+const { sendClinicianCrisisAlert } = require('../services/notificationService')
 
 const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
 
@@ -69,14 +71,42 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
     }, { timeout: 12000 })
       .catch(() => ({ data: { riskScore: 0.3, riskLevel: 'low', topFactors: [] } }))
 
-    // Step 6 — Immediate crisis alert if prob > 0.75
-    if (nlpResults.crisisProbability > 0.75) {
-      const userDoc = await db.collection('users').doc(uid).get()
+    // Step 6 — Alert clinician if crisis prob > 0.5 OR XGBoost risk > 0.6 (demo-reliable threshold)
+    const isCrisis   = nlpResults.crisisProbability > 0.50
+    const isHighRisk = riskRes.data.riskScore > 0.60
+    if (isCrisis || isHighRisk) {
+      const userDoc     = await db.collection('users').doc(uid).get()
+      const userData    = userDoc.exists ? userDoc.data() : {}
+      const alertType   = isCrisis ? 'crisis' : 'high_risk'
+
+      // 6a — Write Firestore alert (triggers real-time dashboard onSnapshot)
       await db.collection('clinicianAlerts').add({
-        patientUid: uid, clinicianUid: userDoc.exists ? userDoc.data().assignedClinician : '',
-        type: 'crisis', riskScore: riskRes.data.riskScore, crisisProb: nlpResults.crisisProbability,
-        triggerFactors: riskRes.data.topFactors || [], resolved: false, resolvedAt: null, timestamp: new Date().toISOString()
+        patientUid:     uid,
+        patientName:    userData.name || 'Patient',
+        clinicianUid:   userData.assignedClinician || '',
+        type:           alertType,
+        riskScore:      riskRes.data.riskScore,
+        crisisProb:     nlpResults.crisisProbability,
+        triggerFactors: riskRes.data.topFactors || [],
+        emotionLabel:   nlpResults.emotionLabel,
+        divergenceScore: divergence,
+        resolved:       false,
+        resolvedAt:     null,
+        timestamp:      new Date().toISOString()
       })
+
+      // 6b — FCM push to clinician (best-effort, non-fatal if token missing)
+      try {
+        if (userData.assignedClinician) {
+          const clinicianDoc = await db.collection('users').doc(userData.assignedClinician).get()
+          const fcmToken     = clinicianDoc.exists ? clinicianDoc.data().fcmToken : null
+          if (fcmToken) {
+            await sendClinicianCrisisAlert(fcmToken, userData.name || 'A patient', riskRes.data.riskScore)
+          }
+        }
+      } catch (fcmErr) {
+        console.warn('[moodRoutes] FCM push failed (non-fatal):', fcmErr.message)
+      }
     }
 
     // Step 7 — Save complete log
