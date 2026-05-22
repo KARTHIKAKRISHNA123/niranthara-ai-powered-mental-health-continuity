@@ -18,6 +18,8 @@ import { processOfflineSync } from '../services/syncService';
 import { useAuth } from '../context/AuthContext';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { app } from '../utils/firebase';
+import { syncBiometricsToBackend } from '../services/HealthConnectService';
+import { ActivityIndicator } from 'react-native';
 
 // AnimatedCircle for SVG ring fill
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -258,65 +260,85 @@ function HrvArc({ deviation }) {
   );
 }
 
-// ─── SmartWatch Card ──────────────────────────────────────────────────────────
-function SmartWatchCard({ uid }) {
-  const [watchData, setWatchData] = useState(null);
-  const [loading, setLoading] = useState(true);
+// ─── Health Connect Card ──────────────────────────────────────────────────
+function HealthConnectCard({ onSync }) {
+  const [syncing,    setSyncing]    = useState(false);
+  const [lastSync,   setLastSync]   = useState(null);
+  const [biometrics, setBiometrics] = useState(null);
+  const [alertFired, setAlertFired] = useState(false);
 
-  useEffect(() => {
-    if (!uid) return;
-    const unsub = onSnapshot(doc(getFirestore(app), 'users', uid), (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        setWatchData({ connected: !!d.fitbitConnected, lastSync: d.lastBiometricSync || null, hrvDeviation: d.lastHrvDeviation || 0 });
-      }
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [uid]);
-
-  const connected = watchData?.connected;
-  const formatSync = (iso) => {
-    if (!iso) return 'Never synced';
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' · ' + d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const handleSync = async () => {
+    setSyncing(true);
+    setAlertFired(false);
+    const result = await syncBiometricsToBackend();
+    setSyncing(false);
+    if (result.success) {
+      setLastSync(new Date());
+      setBiometrics(result.biometrics);
+      setAlertFired(result.data?.alertCreated || false);
+      if (onSync) onSync(result.data);
+    }
   };
 
+  const isSimulated = biometrics?.source === 'simulation';
+  const stressColor = !biometrics ? COLORS.warmGray
+    : biometrics.hrv < 40 ? COLORS.alert
+    : biometrics.hrv < 55 ? COLORS.warning : COLORS.sage;
+
   return (
-    <View style={[s.watchCard, { backgroundColor: connected ? '#EEF7F1' : COLORS.warmWhite }]}>
+    <View style={[s.watchCard, alertFired && { borderColor: COLORS.warning, borderWidth: 1.5 }]}>
       <View style={s.watchHeaderRow}>
-        <View style={[s.watchDot, { backgroundColor: connected ? COLORS.sage : COLORS.softGray }]} />
-        <Text style={s.watchTitle}>Smartwatch Health</Text>
-        <Text style={[s.watchStatus, { color: connected ? COLORS.sageDark : COLORS.warmGray }]}>
-          {loading ? '…' : connected ? 'Connected' : 'Not connected'}
-        </Text>
+        <View style={[s.watchDot, { backgroundColor: lastSync ? COLORS.sage : COLORS.softGray }]} />
+        <Text style={s.watchTitle}>Health Connect</Text>
+        {isSimulated && <Text style={[s.watchStatus, { color: COLORS.warmGray }]}>SIMULATED</Text>}
       </View>
-      {connected && watchData?.lastSync && (
-        <Text style={s.watchSync}>Last sync {formatSync(watchData.lastSync)}</Text>
+
+      {lastSync && (
+        <Text style={s.watchSync}>
+          Synced {lastSync.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          {alertFired ? '  ·  Alert sent to clinician' : ''}
+        </Text>
       )}
-      {connected ? (
-        <View style={s.watchBody}>
-          <HrvArc deviation={watchData?.hrvDeviation} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.watchMetaLabel}>HRV DEVIATION</Text>
-            <Text style={s.watchMetaValue}>
-              {watchData?.hrvDeviation > 0.4 ? 'Critically low'
-                : watchData?.hrvDeviation > 0.2 ? 'Slightly low'
-                  : 'Within baseline'}
+
+      {biometrics ? (
+        <View style={s.bioGrid}>
+          <View style={s.bioCell}>
+            <Text style={s.bioCellValue}>{biometrics.heartRate}</Text>
+            <Text style={s.bioCellLabel}>BPM</Text>
+          </View>
+          <View style={s.bioCell}>
+            <Text style={[s.bioCellValue, { color: stressColor }]}>
+              {biometrics.hrv ?? '—'}
             </Text>
-            <Text style={s.watchMetaSub}>Measured against your 30-day personal baseline</Text>
+            <Text style={s.bioCellLabel}>HRV ms</Text>
+          </View>
+          <View style={s.bioCell}>
+            <Text style={s.bioCellValue}>{(biometrics.steps / 1000).toFixed(1)}k</Text>
+            <Text style={s.bioCellLabel}>Steps</Text>
+          </View>
+          <View style={s.bioCell}>
+            <Text style={s.bioCellValue}>{biometrics.sleepHours}h</Text>
+            <Text style={s.bioCellLabel}>Sleep</Text>
           </View>
         </View>
       ) : (
-        <TouchableOpacity
-          style={s.connectBtn}
-          onPress={() => uid && Linking.openURL(`http://localhost:5001/smartwatch/auth/connect?uid=${uid}`)}
-          accessibilityLabel="Connect your Smartwatch tracker to Niranthara"
-        >
-          <Feather name="watch" size={15} color={COLORS.warmWhite} />
-          <Text style={s.connectBtnText}>Connect Smartwatch</Text>
-        </TouchableOpacity>
+        <Text style={[s.watchMetaSub, { marginBottom: SPACING.md }]}>
+          Da Fit  →  Health Connect  →  Niranthara
+        </Text>
       )}
+
+      <TouchableOpacity
+        style={[s.connectBtn, syncing && { opacity: 0.6 }]}
+        onPress={handleSync}
+        disabled={syncing}
+        accessibilityLabel="Sync your smartwatch biometrics to Niranthara"
+      >
+        {syncing
+          ? <ActivityIndicator color={COLORS.warmWhite} size="small" />
+          : <><Feather name="activity" size={15} color={COLORS.warmWhite} />
+             <Text style={s.connectBtnText}>Sync Biometrics Now</Text></>
+        }
+      </TouchableOpacity>
     </View>
   );
 }
@@ -452,9 +474,11 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* SmartWatch */}
+        {/* Health Connect Biometric Sync */}
         <Animated.View style={entrance(anim3, 8)}>
-          <SmartWatchCard uid={currentUser?.uid} />
+          <HealthConnectCard onSync={(data) => {
+            if (data?.riskScore) setData(prev => ({ ...prev, riskScore: data.riskScore }));
+          }} />
         </Animated.View>
 
         {/* Daily check-in CTA */}
@@ -585,12 +609,14 @@ const s = StyleSheet.create({
   watchTitle: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.charcoal, flex: 1 },
   watchStatus: { fontFamily: FONTS.body, fontSize: 12 },
   watchSync: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray, marginBottom: SPACING.md, paddingLeft: 15 },
-  watchBody: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg, marginTop: SPACING.md },
-  watchMetaLabel: { fontFamily: FONTS.body, fontSize: 9, color: COLORS.warmGray, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  watchMetaValue: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: 3 },
   watchMetaSub: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray },
   connectBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.rose, borderRadius: RADIUS.md, padding: SPACING.lg, justifyContent: 'center', marginTop: SPACING.md, minHeight: 48 },
   connectBtnText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.warmWhite },
+  // Biometric grid
+  bioGrid: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+  bioCell: { flex: 1, backgroundColor: COLORS.cream, borderRadius: RADIUS.md, padding: SPACING.md, alignItems: 'center' },
+  bioCellValue: { fontFamily: FONTS.medium, fontSize: 18, color: COLORS.charcoal },
+  bioCellLabel: { fontFamily: FONTS.body, fontSize: 9.5, color: COLORS.warmGray, marginTop: 2, textTransform: 'uppercase' },
 
   // CTA & JITAI cards
   checkinCard: { backgroundColor: COLORS.roseLight, borderRadius: RADIUS.lg, padding: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md, minHeight: 72 },

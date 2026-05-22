@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, ScrollView, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Path, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
 import { api, postData } from '../utils/api';
@@ -78,130 +78,73 @@ function getPhaseId(day, cycleLength) {
   return 'luteal';
 }
 
-// ─── Phase Ring — single ring, uniform stroke, no overlapping ────────────────
-function PhaseRing({ cycleLength = 28, currentDay = 1, vulnerabilityScore = 0, size = 260 }) {
+// ─── Phase Ring — single ring, uniform stroke, RN Text overlay for center ────
+function PhaseRing({ cycleLength = 28, currentDay = 1, size = 260 }) {
   const cx = size / 2;
   const cy = size / 2;
 
-  // Single ring geometry — consistent stroke for all arcs
-  const R  = size * 0.37;   // ring radius
-  const SW = size * 0.075;  // uniform stroke width (no active bulge)
-  const GAP_DEG = 2.5;      // visual gap between phase segments
+  const R       = size * 0.40;   // ring radius — slightly larger for breathing room
+  const SW      = size * 0.072;  // uniform stroke (no active bulge)
+  const GAP_DEG = 2.5;
 
-  const degPerDay = 360 / cycleLength;
+  const degPerDay      = 360 / cycleLength;
   const currentPhaseId = getPhaseId(currentDay, cycleLength);
   const currentPhase   = PHASES.find(p => p.id === currentPhaseId) || PHASES[3];
 
-  // Day dot position — sits on the ring, small and phase-colored
   const dotAngle = currentDay * degPerDay;
   const dotPos   = polarToXY(dotAngle, R, cx, cy);
 
-  // Vulnerability arc — inner ring, clearly separated, very thin
-  const R_VULN = R - SW - 10;                         // well inside the phase ring
-  const VULN_CIRC = 2 * Math.PI * R_VULN;
-  const vulnFill = VULN_CIRC * Math.min(vulnerabilityScore, 1);
-  const vulnColor = vulnerabilityScore >= 0.7
-    ? COLORS.alert
-    : vulnerabilityScore >= 0.4
-    ? COLORS.warning
-    : COLORS.sage;
-
   return (
     <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {/* SVG ring — arcs + dot only, NO SvgText (custom fonts don't load in SVG) */}
+      <View style={{ width: size, height: size }}>
+        <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
 
-        {/* ── Background track (faint full circle) ── */}
-        <Circle
-          cx={cx} cy={cy} r={R}
-          stroke="rgba(44,40,38,0.07)"
-          strokeWidth={SW}
-          fill="none"
-        />
-
-        {/* ── Phase arcs — uniform stroke, opacity signals active ── */}
-        {PHASES.map((phase) => {
-          const scale = cycleLength / 28;
-          const d0 = Math.max(1, Math.round(phase.days[0] * scale));
-          const d1 = Math.min(cycleLength, Math.round(phase.days[1] * scale));
-          if (d1 < d0) return null;
-
-          const startDeg = (d0 - 1) * degPerDay + GAP_DEG;
-          const endDeg   = d1 * degPerDay - GAP_DEG;
-          if (endDeg <= startDeg) return null;
-
-          const isActive = phase.id === currentPhaseId;
-
-          return (
-            <Path
-              key={phase.id}
-              d={describeArc(cx, cy, R, startDeg, endDeg)}
-              stroke={phase.color}
-              strokeWidth={SW}          // same width for ALL phases — no ring jumping
-              strokeLinecap="round"
-              fill="none"
-              opacity={isActive ? 1 : 0.25}
-            />
-          );
-        })}
-
-        {/* ── Vulnerability inner ring — thin, clearly separate ── */}
-        <Circle
-          cx={cx} cy={cy} r={R_VULN}
-          stroke="rgba(44,40,38,0.07)"
-          strokeWidth={3}
-          fill="none"
-        />
-        {vulnerabilityScore > 0.05 && (
+          {/* Background track */}
           <Circle
-            cx={cx} cy={cy} r={R_VULN}
-            stroke={vulnColor}
-            strokeWidth={3}
+            cx={cx} cy={cy} r={R}
+            stroke="rgba(44,40,38,0.07)"
+            strokeWidth={SW}
             fill="none"
-            strokeDasharray={`${vulnFill} ${VULN_CIRC}`}
-            strokeLinecap="round"
-            rotation="-90"
-            origin={`${cx},${cy}`}
-            opacity={0.75}
           />
-        )}
 
-        {/* ── Day dot — small, phase-colored, clean white outline ── */}
-        <Circle cx={dotPos.x} cy={dotPos.y} r={7} fill={COLORS.warmWhite} />
-        <Circle cx={dotPos.x} cy={dotPos.y} r={5} fill={currentPhase.color} />
+          {/* Phase arcs — uniform strokeWidth for all */}
+          {PHASES.map((phase) => {
+            const scale = cycleLength / 28;
+            const d0 = Math.max(1, Math.round(phase.days[0] * scale));
+            const d1 = Math.min(cycleLength, Math.round(phase.days[1] * scale));
+            if (d1 < d0) return null;
+            const startDeg = (d0 - 1) * degPerDay + GAP_DEG;
+            const endDeg   = d1 * degPerDay - GAP_DEG;
+            if (endDeg <= startDeg) return null;
+            const isActive = phase.id === currentPhaseId;
+            return (
+              <Path
+                key={phase.id}
+                d={describeArc(cx, cy, R, startDeg, endDeg)}
+                stroke={phase.color}
+                strokeWidth={SW}
+                strokeLinecap="round"
+                fill="none"
+                opacity={isActive ? 1 : 0.22}
+              />
+            );
+          })}
 
-        {/* ── Centre: Day number + cycle length ── */}
-        <SvgText
-          x={cx} y={cy - size * 0.07}
-          textAnchor="middle"
-          fontSize={size * 0.095}
-          fontWeight="300"
-          fontFamily="serif"
-          fill={COLORS.charcoal}
-          letterSpacing="1"
-        >
-          Day
-        </SvgText>
-        <SvgText
-          x={cx} y={cy + size * 0.07}
-          textAnchor="middle"
-          fontSize={size * 0.19}
-          fontWeight="300"
-          fontFamily="serif"
-          fill={COLORS.charcoal}
-        >
-          {currentDay}
-        </SvgText>
-        <SvgText
-          x={cx} y={cy + size * 0.14}
-          textAnchor="middle"
-          fontSize={size * 0.048}
-          fill={COLORS.warmGray}
-        >
-          of {cycleLength}
-        </SvgText>
-      </Svg>
+          {/* Day dot — phase-colored, white halo, sits on the ring */}
+          <Circle cx={dotPos.x} cy={dotPos.y} r={8}   fill={COLORS.warmWhite} />
+          <Circle cx={dotPos.x} cy={dotPos.y} r={5.5} fill={currentPhase.color} />
+        </Svg>
 
-      {/* Phase legend — horizontal row of colored dots */}
+        {/* ── Center text overlay — React Native Text so custom fonts load ── */}
+        <View style={styles.ringCenter} pointerEvents="none">
+          <Text style={styles.ringDayLabel}>DAY</Text>
+          <Text style={styles.ringDayNumber}>{currentDay}</Text>
+          <Text style={styles.ringDaySub}>of {cycleLength}</Text>
+        </View>
+      </View>
+
+      {/* Phase legend */}
       <View style={styles.phaseLegend}>
         {PHASES.map((p) => {
           const isActive = p.id === currentPhaseId;
@@ -366,7 +309,6 @@ export default function CycleScreen() {
               <PhaseRing
                 cycleLength={cycleLength}
                 currentDay={currentDay}
-                vulnerabilityScore={vulnScore}
                 size={272}
               />
             </View>
@@ -461,6 +403,36 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginBottom: SPACING.xl,
+  },
+
+  // Ring center text overlay (absolute, centered over SVG)
+  ringCenter: {
+    position:       'absolute',
+    top:            0,
+    left:           0,
+    right:          0,
+    bottom:         0,
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+  ringDayLabel: {
+    fontFamily:    FONTS.medium,
+    fontSize:      11,
+    color:         COLORS.warmGray,
+    letterSpacing: 3,
+    marginBottom:  2,
+  },
+  ringDayNumber: {
+    fontFamily: FONTS.display,       // Cormorant Garamond — loads correctly in RN View
+    fontSize:   80,
+    lineHeight: 80,
+    color:      COLORS.charcoal,
+    marginBottom: 2,
+  },
+  ringDaySub: {
+    fontFamily: FONTS.body,
+    fontSize:   13,
+    color:      COLORS.warmGray,
   },
 
   // Phase legend

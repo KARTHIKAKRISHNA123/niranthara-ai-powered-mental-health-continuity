@@ -3137,3 +3137,19 @@ To elevate Niranthara from a highly functional prototype to a world-class health
 | **Option C** | **Clinician Signal Card** (Clinical) | Clinician & Regulator | Demonstrates scientific rigor, explainable metrics, and clinical utility. |
 
 > **Recommended Implementation Strategy:** Combine the **Divergence Arc (Option A)** on the Mobile Home Screen for immediate visual punch with the **SHAP Narrative Card (Option C)** to capture technical and clinical credibility. This ensures both "emotionally intelligent" and "clinically rigorous" claims are backed visually within the first 5 seconds of a demo.
+
+---
+
+## 35. Health Connect Biometric Sync (Smartwatch Integration)
+
+**Objective:** To provide continuous, passive physiological monitoring (heart rate, HRV, steps, sleep) without relying on proprietary hardware lock-ins (like Fitbit) or enterprise-only Google Cloud Healthcare APIs.
+
+### Architecture
+1. **The Source (Da Fit / Smartwatch):** The user's wearable device syncs via Bluetooth to its companion app (e.g., Da Fit) on the Android phone.
+2. **The Middleman (Health Connect):** The companion app writes this data into Android Health Connect, the local on-device health database.
+3. **The Extractor (`react-native-health-connect`):** The Niranthara mobile app requests read permissions and queries the Health Connect database locally.
+4. **The Pipeline:** The mobile app bundles the data (`heartRate`, `hrv`, `steps`, `sleepHours`) and sends it via POST to the Node.js backend (`/api/passive/biometric-sync`).
+5. **The Analysis:** The backend processes the metrics, compares them against the user's 30-day personalized baseline, and automatically triggers an `EscalationCron` JITAI or Clinician Alert if a severe physiological deviation is detected.
+
+### Fallback (Simulation Mode)
+Because `react-native-health-connect` requires a compiled native binary (EAS build) and does not run inside the standard **Expo Go** client, the `HealthConnectService` gracefully degrades to a **Simulation Mode** during local development. It provides realistic mocked biometric data (like a low HRV of 35ms) to ensure the UI, backend pipeline, and dashboard alerts can be fully tested and demonstrated without needing a physical watch or a custom native build.
