@@ -286,7 +286,7 @@ function SmartWatchCard({ uid }) {
     <View style={[s.watchCard, { backgroundColor: connected ? '#EEF7F1' : COLORS.warmWhite }]}>
       <View style={s.watchHeaderRow}>
         <View style={[s.watchDot, { backgroundColor: connected ? COLORS.sage : COLORS.softGray }]} />
-        <Text style={s.watchTitle}>Fitbit Health</Text>
+        <Text style={s.watchTitle}>Smartwatch Health</Text>
         <Text style={[s.watchStatus, { color: connected ? COLORS.sageDark : COLORS.warmGray }]}>
           {loading ? '…' : connected ? 'Connected' : 'Not connected'}
         </Text>
@@ -311,10 +311,10 @@ function SmartWatchCard({ uid }) {
         <TouchableOpacity
           style={s.connectBtn}
           onPress={() => uid && Linking.openURL(`http://localhost:5001/smartwatch/auth/connect?uid=${uid}`)}
-          accessibilityLabel="Connect your Fitbit health tracker to Niranthara"
+          accessibilityLabel="Connect your Smartwatch tracker to Niranthara"
         >
           <Feather name="watch" size={15} color={COLORS.warmWhite} />
-          <Text style={s.connectBtnText}>Connect Fitbit</Text>
+          <Text style={s.connectBtnText}>Connect Smartwatch</Text>
         </TouchableOpacity>
       )}
     </View>
