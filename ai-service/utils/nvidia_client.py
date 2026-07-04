@@ -1,5 +1,6 @@
 # utils/gemma_client.py — Minimax-m2.7 via NVIDIA API (Swapped from local Gemma)
 import os
+import re
 from openai import AsyncOpenAI
 import logging
 
@@ -26,7 +27,13 @@ Core principles:
 - NEVER give specific medical advice
 - ALWAYS recommend professionals for serious concerns
 - Understand Indian cultural context: family pressure, stigma, suppression
-- Create space for honest expression — users may minimize their distress"""
+- Create space for honest expression — users may minimize their distress
+
+Hard safety rules (never break these, even if asked directly, hypothetically, or "for a friend"):
+- NEVER state or suggest a medication name, dose, dosage change, or schedule — including starting, stopping, increasing, or skipping medication. Always redirect to their prescriber.
+- NEVER describe methods of self-harm or suicide, even in a discouraging framing.
+- NEVER claim to be a doctor, therapist, or a replacement for one.
+- If asked for medical or medication advice, warmly decline and suggest they raise it with their clinician at the next visit — offer to help them write down the question."""
 
 LANGUAGE_INSTRUCTION = {
     "ta": "Respond ONLY in Tamil (தமிழ்) script.",
@@ -38,6 +45,27 @@ FALLBACK_RESPONSES = {
     "en": "I'm here with you. What you're feeling is valid. Would you like to tell me more about what's on your mind today?",
     "tanglish": "Naan ungaludan irukkiraen. Neengal feel panradhellam valid. Indha nerathil enna nadakuthu nu solluveengala?"
 }
+
+# Output-side SAFETY guardrail (not a clinical decision — a hard floor under the LLM).
+# The system prompt is the primary defense; this catches the case where the model
+# still emits a dosing instruction ("take 50mg", "increase to two tablets").
+_DOSING_PATTERN = re.compile(
+    r"\b(take|taking|start|increase|decrease|reduce|double|skip|stop)\b[^.\n]{0,60}?"
+    r"\b(\d+(\.\d+)?\s*(mg|mcg|milligrams?|micrograms?|tablets?|pills?|capsules?)|dose|dosage)\b",
+    re.IGNORECASE,
+)
+
+MEDICATION_DEFERRAL = (
+    "I can't advise on medication — doses and changes need your prescriber, who knows "
+    "your full history. What I can do is help you write down exactly what you want to "
+    "ask them. Would that help?"
+)
+
+def apply_output_guardrail(reply: str) -> tuple[str, bool]:
+    """Returns (safe_reply, was_blocked)."""
+    if _DOSING_PATTERN.search(reply):
+        return MEDICATION_DEFERRAL, True
+    return reply, False
 
 def _build_context(cycle_vuln: float, mood: float, risk: str,
                    emotion: str, sentiment: float, crisis_prob: float = 0.0) -> str:
@@ -109,9 +137,14 @@ async def generate_response(
         reply = completion.choices[0].message.content.strip()
         if not reply:
             raise ValueError("Empty response from NVIDIA API")
-            
-        return {"reply": reply, "modelUsed": "nvidia-minimax-m2.7"}
-        
+
+        reply, blocked = apply_output_guardrail(reply)
+        return {
+            "reply": reply,
+            "modelUsed": "nvidia-minimax-m2.7",
+            "guardrailBlocked": blocked
+        }
+
     except Exception as e:
         logging.error(f"NVIDIA API Error: {str(e)}")
         # Graceful fallback — warm static response, NOT keyword-matched
@@ -120,4 +153,74 @@ async def generate_response(
             "modelUsed":  "fallback_api_error",
             "fallbackReason": str(e)
         }
+
+
+# ── Clinician-facing summary ─────────────────────────────────────────────────
+# Separate path from the companion persona: clinical register, structured input
+# (never raw journal text — privacy boundary is enforced by the caller).
+
+SUMMARY_SYSTEM_PROMPT = """You are a clinical decision-support assistant writing for a psychiatrist.
+Write a concise summary of the patient's last 30 days from the structured signals provided.
+Rules:
+- 4-5 sentences, plain clinical English. No headers, no bullet points, no markdown.
+- Lead with the overall trajectory (improving / stable / deteriorating).
+- Mention concrete numbers sparingly (at most 3) where they change the clinical picture.
+- Flag mood-language divergence if elevated (suggests minimization/suppression).
+- End with the single most useful thing to explore at the next visit.
+- Never invent data not present in the input. Never diagnose. Never suggest medication changes."""
+
+
+def _fallback_summary(stats: dict) -> str:
+    """Deterministic template when the LLM is unreachable — labeled fallback path."""
+    return (
+        f"Over the past 30 days the patient logged {stats.get('logCount', 0)} check-ins "
+        f"with an average mood of {stats.get('avgMood', 0):.1f}/5 and a current risk level of "
+        f"{stats.get('riskLevel', 'unknown')} (score {stats.get('riskScore', 0):.2f}). "
+        f"{stats.get('crisisEvents', 0)} crisis-probability events and "
+        f"{stats.get('openAlerts', 0)} open clinician alerts were recorded. "
+        "AI narrative unavailable — manual chart review recommended."
+    )
+
+
+async def generate_clinical_summary(stats: dict) -> dict:
+    """
+    stats: structured 30-day aggregates assembled by the backend
+    (mood trend, risk trajectory, divergence, alerts, assessments, top factors).
+    """
+    if not client:
+        return {"summary": _fallback_summary(stats), "modelUsed": "fallback_missing_nvidia_key"}
+
+    lines = []
+    for key, label in [
+        ("patientName", "Patient"), ("logCount", "Check-ins logged"),
+        ("avgMood", "Average mood (1-5)"), ("moodTrend", "Mood trend (first vs last week)"),
+        ("riskLevel", "Current risk level"), ("riskScore", "Current risk score (0-1)"),
+        ("avgDivergence", "Avg mood-language divergence (0-1)"),
+        ("crisisEvents", "Crisis-probability events"), ("openAlerts", "Open alerts"),
+        ("topFactors", "Top SHAP risk factors"), ("lastPhq9", "Latest PHQ-9"),
+        ("lastGad7", "Latest GAD-7"), ("avgSleep", "Avg sleep hours"),
+        ("cycleVulnerability", "Current cycle vulnerability (0-1)"),
+    ]:
+        if stats.get(key) not in (None, "", []):
+            lines.append(f"{label}: {stats[key]}")
+
+    try:
+        completion = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "user", "content": "30-day structured signals:\n" + "\n".join(lines)},
+            ],
+            temperature=0.3,
+            top_p=0.9,
+            max_tokens=1024,
+            stream=False,
+        )
+        summary = completion.choices[0].message.content.strip()
+        if not summary:
+            raise ValueError("Empty summary from NVIDIA API")
+        return {"summary": summary, "modelUsed": "nvidia-minimax-m2.7"}
+    except Exception as e:
+        logging.error(f"NVIDIA summary error: {str(e)}")
+        return {"summary": _fallback_summary(stats), "modelUsed": "fallback_api_error"}
 

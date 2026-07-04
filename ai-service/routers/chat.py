@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
-from utils.nvidia_client import generate_response
+from utils.nvidia_client import generate_response, generate_clinical_summary
 from utils.sarvam_client import transcribe_audio, is_mocked
 from utils.language_detector import detect_language
 from transformers import pipeline
@@ -97,6 +97,31 @@ async def chat(request: ChatRequest):
         "responseTimeMs":    int(time.time() * 1000) - start_ms,
         "sarvamMocked":      is_mocked()
     }
+
+
+class SummaryRequest(BaseModel):
+    # Structured 30-day aggregates only — the backend never sends raw journal
+    # or chat text here (privacy boundary).
+    patientName:        Optional[str]   = None
+    logCount:           Optional[int]   = 0
+    avgMood:            Optional[float] = None
+    moodTrend:          Optional[str]   = None
+    riskLevel:          Optional[str]   = None
+    riskScore:          Optional[float] = None
+    avgDivergence:      Optional[float] = None
+    crisisEvents:       Optional[int]   = 0
+    openAlerts:         Optional[int]   = 0
+    topFactors:         Optional[list[str]] = None
+    lastPhq9:           Optional[str]   = None
+    lastGad7:           Optional[str]   = None
+    avgSleep:           Optional[float] = None
+    cycleVulnerability: Optional[float] = None
+
+
+@router.post("/summary")
+async def clinical_summary(request: SummaryRequest):
+    """Clinician-facing 30-day narrative from structured signals (no raw text)."""
+    return await generate_clinical_summary(request.model_dump())
 
 
 @router.post("/transcribe")
