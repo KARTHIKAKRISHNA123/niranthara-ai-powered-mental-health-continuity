@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl, Linking, Animated, Easing
+  TouchableOpacity, RefreshControl, Linking, Animated, Easing, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Text as SvgText } from 'react-native-svg';
@@ -18,7 +18,10 @@ import { processOfflineSync } from '../services/syncService';
 import { useAuth } from '../context/AuthContext';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { app } from '../utils/firebase';
-import { syncBiometricsToBackend } from '../services/HealthConnectService';
+import {
+  syncBiometricsToBackend, syncCrisisBiometrics,
+  toggleBiometricMode, BIOMETRIC_SOURCE,
+} from '../services/HealthConnectService';
 import { ActivityIndicator } from 'react-native';
 
 // AnimatedCircle for SVG ring fill
@@ -267,10 +270,10 @@ function HealthConnectCard({ onSync }) {
   const [biometrics, setBiometrics] = useState(null);
   const [alertFired, setAlertFired] = useState(false);
 
-  const handleSync = async () => {
+  const runSync = async (fn) => {
     setSyncing(true);
     setAlertFired(false);
-    const result = await syncBiometricsToBackend();
+    const result = await fn();
     setSyncing(false);
     if (result.success) {
       setLastSync(new Date());
@@ -278,6 +281,22 @@ function HealthConnectCard({ onSync }) {
       setAlertFired(result.data?.alertCreated || false);
       if (onSync) onSync(result.data);
     }
+  };
+
+  const handleSync = () => runSync(syncBiometricsToBackend);
+  // Hidden presenter control: long-press fires a deterministic HRV-crash
+  // through the real pipeline so the clinician alert lands reliably on stage.
+  const handleDemoCrisis = () => runSync(syncCrisisBiometrics);
+
+  // Hidden dev toggle: long-press the title to force REAL vs SIMULATED source.
+  const handleToggleSource = () => {
+    const m = toggleBiometricMode();
+    Alert.alert(
+      'Biometric source',
+      m === BIOMETRIC_SOURCE.SIMULATED
+        ? 'Switched to SIMULATED demo data.'
+        : 'Switched to REAL Health Connect data (falls back to simulation if none available).',
+    );
   };
 
   const isSimulated = biometrics?.source === 'simulation';
@@ -289,8 +308,23 @@ function HealthConnectCard({ onSync }) {
     <View style={[s.watchCard, alertFired && { borderColor: COLORS.warning, borderWidth: 1.5 }]}>
       <View style={s.watchHeaderRow}>
         <View style={[s.watchDot, { backgroundColor: lastSync ? COLORS.sage : COLORS.softGray }]} />
-        <Text style={s.watchTitle}>Health Connect</Text>
-        {isSimulated && <Text style={[s.watchStatus, { color: COLORS.warmGray }]}>SIMULATED</Text>}
+        <TouchableOpacity
+          style={{ flexShrink: 1 }}
+          activeOpacity={1}
+          onLongPress={handleToggleSource}
+          delayLongPress={700}
+          accessibilityLabel="Health Connect biometric source"
+        >
+          <Text style={s.watchTitle}>Health Connect</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        {biometrics && (
+          isSimulated
+            ? <Text style={[s.watchStatus, { color: COLORS.warmGray }]}>SIMULATED</Text>
+            : <Text style={[s.watchStatus, { color: COLORS.sageDark }]}>
+                {(biometrics.provider || 'LIVE').toUpperCase()}
+              </Text>
+        )}
       </View>
 
       {lastSync && (
@@ -327,9 +361,19 @@ function HealthConnectCard({ onSync }) {
         </Text>
       )}
 
+      {biometrics && !isSimulated && (biometrics.calories || biometrics.distanceKm) && (
+        <Text style={[s.watchMetaSub, { marginBottom: SPACING.md }]}>
+          {biometrics.provider}
+          {biometrics.calories   ? `   ·   ${biometrics.calories} kcal` : ''}
+          {biometrics.distanceKm ? `   ·   ${biometrics.distanceKm} km` : ''}
+        </Text>
+      )}
+
       <TouchableOpacity
         style={[s.connectBtn, syncing && { opacity: 0.6 }]}
         onPress={handleSync}
+        onLongPress={handleDemoCrisis}
+        delayLongPress={600}
         disabled={syncing}
         accessibilityLabel="Sync your smartwatch biometrics to Niranthara"
       >
