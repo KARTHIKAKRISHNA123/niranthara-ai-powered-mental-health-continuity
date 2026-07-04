@@ -39,6 +39,11 @@ const testUser = {
   },
   "riskLevel": "high",
   "riskScore": 0.72,
+  "topFactors": [
+    "Crisis probability elevated (mental-roberta)",
+    "Sleep 32% below personal baseline",
+    "Mood-sentiment divergence rising (suppression)"
+  ],
   "profileComplete": true,
   "role": "user",
   "createdAt": admin.firestore.Timestamp.fromDate(new Date("2026-01-10T10:30:00.000Z")),
@@ -124,6 +129,32 @@ async function seedData() {
     await db.collection('clinicianAlerts').add(alert1);
     await db.collection('clinicianAlerts').add(alert2);
     console.log(`✅ Successfully seeded 2 clinician alerts for the dashboard`);
+
+    // Seed PHQ-9 / GAD-7 history so the dashboard assessments card has a trajectory
+    const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    const seedAssessments = [
+      { type: 'phq9', answers: [1,1,2,1,1,1,1,0,0], daysBack: 28 }, // 8  mild
+      { type: 'phq9', answers: [2,2,2,1,2,1,1,1,0], daysBack: 14 }, // 12 moderate
+      { type: 'phq9', answers: [2,3,3,2,2,2,1,1,1], daysBack: 2  }, // 17 mod-severe, item 9 flagged
+      { type: 'gad7', answers: [1,1,2,1,1,1,1],     daysBack: 21 }, // 8  mild
+      { type: 'gad7', answers: [2,2,2,2,1,2,1],     daysBack: 3  }, // 12 moderate
+    ];
+    const sevPhq9 = (s) => s <= 4 ? 'minimal' : s <= 9 ? 'mild' : s <= 14 ? 'moderate' : s <= 19 ? 'moderately severe' : 'severe';
+    const sevGad7 = (s) => s <= 4 ? 'minimal' : s <= 9 ? 'mild' : s <= 14 ? 'moderate' : 'severe';
+    for (const a of seedAssessments) {
+      const score = a.answers.reduce((s, x) => s + x, 0);
+      await db.collection('assessments').add({
+        uid: testUser.uid,
+        type: a.type,
+        answers: a.answers,
+        score,
+        severity: a.type === 'phq9' ? sevPhq9(score) : sevGad7(score),
+        selfHarmFlag: a.type === 'phq9' && a.answers[8] > 0,
+        maxScore: a.type === 'phq9' ? 27 : 21,
+        createdAt: daysAgo(a.daysBack),
+      });
+    }
+    console.log(`✅ Seeded ${seedAssessments.length} assessments (PHQ-9 trajectory + GAD-7)`);
 
     process.exit(0);
   } catch (error) {

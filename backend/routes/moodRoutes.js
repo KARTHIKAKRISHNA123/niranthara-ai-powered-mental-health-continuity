@@ -122,8 +122,9 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
       offlineSyncId: offlineSyncId || null, syncedToFirestore: true, createdAt: new Date().toISOString()
     })
 
-    // Step 8 — Update user risk level
-    await db.collection('users').doc(uid).update({ riskLevel: riskRes.data.riskLevel, riskScore: riskRes.data.riskScore, updatedAt: new Date().toISOString() })
+    // Step 8 — Update user risk level (+ topFactors so the dashboard SHAP
+    // panel reads live data — it renders patient.topFactors)
+    await db.collection('users').doc(uid).update({ riskLevel: riskRes.data.riskLevel, riskScore: riskRes.data.riskScore, topFactors: riskRes.data.topFactors || [], updatedAt: new Date().toISOString() })
 
     res.status(201).json({
       message: 'Mood logged successfully', id: logRef.id,

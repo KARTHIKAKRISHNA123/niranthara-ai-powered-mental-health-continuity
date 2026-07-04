@@ -58,30 +58,60 @@ router.get('/patient/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
   }
 })
 
-// GET /api/clinician/summary/:uid — Gemma AI narrative summary
+// GET /api/clinician/summary/:uid — AI narrative summary (Minimax via NVIDIA)
+// Sends structured 30-day aggregates only — never raw journal/chat text.
 router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
+  const generatedAt = new Date().toISOString()
   try {
     const uid = req.params.uid
-    const [userDoc, moodSnap] = await Promise.all([
+    const thirtyAgo = new Date(); thirtyAgo.setDate(thirtyAgo.getDate() - 30)
+
+    const [userDoc, moodSnap, alertSnap, assessSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
-      db.collection('moodLogs').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(7).get()
+      db.collection('moodLogs').where('uid', '==', uid).where('createdAt', '>=', thirtyAgo.toISOString()).orderBy('createdAt', 'desc').get(),
+      db.collection('clinicianAlerts').where('patientUid', '==', uid).get().catch(() => ({ docs: [] })),
+      db.collection('assessments').where('uid', '==', uid).get().catch(() => ({ docs: [] }))
     ])
 
-    const user      = userDoc.exists ? userDoc.data() : {}
-    const moodLogs  = moodSnap.docs.map(d => d.data())
-    const avgMood   = moodLogs.length ? moodLogs.reduce((s, l) => s + l.moodScore, 0) / moodLogs.length : 3
+    const user = userDoc.exists ? userDoc.data() : {}
+    const logs = moodSnap.docs.map(d => d.data())
+    const avg  = (arr, f) => arr.length ? arr.reduce((s, l) => s + (f(l) || 0), 0) / arr.length : null
 
-    const summaryRes = await axios.post(`${AI_URL}/api/chat`, {
-      message: `Generate a 2-3 sentence clinical summary for a patient with risk level ${user.riskLevel || 'low'}, average mood ${avgMood.toFixed(1)}/5 over the past week. Top risk factors: ${(user.riskScore || 0).toFixed(2)} risk score. Be concise and clinical.`,
-      language: 'en',
-      uid,
-      mood_score: avgMood,
-      risk_level: user.riskLevel || 'low'
-    }, { timeout: 30000 })
+    // Mood trend: last 7 days vs first 7 of the window
+    const oldest = logs.slice(-7), newest = logs.slice(0, 7)
+    const oldAvg = avg(oldest, l => l.moodScore), newAvg = avg(newest, l => l.moodScore)
+    const moodTrend = (oldAvg != null && newAvg != null)
+      ? `${oldAvg.toFixed(1)} -> ${newAvg.toFixed(1)} (${newAvg > oldAvg + 0.3 ? 'improving' : newAvg < oldAvg - 0.3 ? 'declining' : 'stable'})`
+      : null
 
-    res.json({ summary: summaryRes.data.reply, generatedAt: new Date().toISOString() })
+    const assessments = assessSnap.docs.map(d => d.data()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    const latest = (type) => {
+      const a = assessments.find(x => x.type === type)
+      return a ? `${a.score}/${a.maxScore} (${a.severity})` : null
+    }
+
+    const stats = {
+      patientName:        user.name || 'Patient',
+      logCount:           logs.length,
+      avgMood:            avg(logs, l => l.moodScore),
+      moodTrend,
+      riskLevel:          user.riskLevel || 'low',
+      riskScore:          user.riskScore || 0,
+      avgDivergence:      avg(logs, l => l.moodSentimentDivergence),
+      crisisEvents:       logs.filter(l => l.nlpResults?.crisisProbability > 0.5).length,
+      openAlerts:         alertSnap.docs.filter(d => d.data().resolved === false).length,
+      topFactors:         user.topFactors || logs[0]?.topFactors || [],
+      lastPhq9:           latest('phq9'),
+      lastGad7:           latest('gad7'),
+      avgSleep:           avg(logs, l => l.sleepHours),
+      cycleVulnerability: logs[0]?.cycleVulnerability ?? null
+    }
+
+    const summaryRes = await axios.post(`${AI_URL}/api/chat/summary`, stats, { timeout: 45000 })
+    res.json({ summary: summaryRes.data.summary, modelUsed: summaryRes.data.modelUsed, generatedAt })
   } catch (error) {
-    res.json({ summary: `Patient has a ${req.query.riskLevel || 'low'} risk profile. Manual review recommended.`, generatedAt: new Date().toISOString() })
+    console.warn('[clinicianRoutes] summary failed:', error.message)
+    res.json({ summary: 'AI summary unavailable — the AI service may be offline. Review the charts below manually.', modelUsed: 'fallback_backend_error', generatedAt })
   }
 })
 
