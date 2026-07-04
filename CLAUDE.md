@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Maintenance rule: update this file in the same session as any change that affects architecture, routes, pipelines, models, screens, or gotchas.** Stale guidance here is worse than none.
+
 ## What this is
 
 Niranthara is an AI mental-health *continuity* platform: passive monitoring of depression triggers, just-in-time interventions (JITAI), and a clinician dashboard with real-time risk intelligence. It is a multi-service monorepo, not a single app.
@@ -39,7 +41,11 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 
 1. **Mood check-in → risk.** `POST /api/mood/log` (`backend/routes/moodRoutes.js`) is the heavy path: AES-encrypt journal → call ai-service sentiment + emotion + crisis in parallel → compute mood/sentiment divergence → pull cycle vulnerability (LSTM) → assemble XGBoost features → write `moodLogs` + update `users.riskLevel`, and write a `clinicianAlerts` doc if crisis. To change risk behavior you touch both `moodRoutes.js` and `ai-service/routers/predict.py`.
 
-2. **Chat.** `mobile Chat.js → backend /api/chat/message → ai-service /api/chat → NVIDIA`. `chatRoutes.js` enriches the message with live user context (cycle/mood/risk/emotion from Firestore) and forwards recent conversation turns; `ai-service/routers/chat.py` runs a crisis classifier (`mental-roberta`), detects language, and calls `utils/nvidia_client.py`. The model is **Minimax M2.7 via NVIDIA's OpenAI-compatible API** (`AsyncOpenAI`, base_url `integrate.api.nvidia.com`), with a static warm fallback if `NVIDIA_API_KEY` is missing or the call fails. Multi-turn memory works by threading `history` (client state → backend → ai-service `messages` array), not by re-reading Firestore.
+2. **Chat.** `mobile Chat.js → backend /api/chat/message → ai-service /api/chat → NVIDIA`. `chatRoutes.js` enriches the message with live user context (cycle/mood/risk/emotion from Firestore) and forwards recent conversation turns; `ai-service/routers/chat.py` runs a crisis classifier (`mental-roberta`), detects language, and calls `utils/nvidia_client.py`. The LLM is a **model chain via NVIDIA's OpenAI-compatible API** (`AsyncOpenAI`, base_url `integrate.api.nvidia.com`): Minimax M2.7 with a bounded timeout (env `NVIDIA_MODEL` / `NVIDIA_PRIMARY_TIMEOUT`, default 25s) → `meta/llama-3.1-8b-instruct` fast lane (~1-2s; `NVIDIA_FAST_MODEL` / `NVIDIA_FALLBACK_TIMEOUT`) → rotating static fallbacks. Every model reply passes `apply_output_guardrail()` (deterministic medication-dosing block — a labeled safety floor, not a clinical decision). Multi-turn memory works by threading `history` (client state → backend → ai-service `messages` array), not by re-reading Firestore. When a crisis is detected, mobile navigates full-screen to `CrisisSupport` (helplines, grounding); the Chat header has a permanent Support button.
+
+3. **Assessments.** `POST /api/assessments` (`backend/routes/assessmentRoutes.js`) scores PHQ-9/GAD-7 server-side, stores item answers in `assessments`, mirrors the latest score onto `users.last_phq9`/`last_gad7`, and **any non-zero PHQ-9 item 9 creates a `clinicianAlerts` doc** (self-harm protocol) regardless of total. Mobile flow: `screens/Assessment.js` (one question per screen; Home card opens PHQ-9, long-press for GAD-7; scores locally if offline). Dashboard: assessments trajectory card on `PatientDetail.jsx`.
+
+4. **Clinician AI summary.** `GET /api/clinician/summary/:uid` assembles 30-day structured aggregates (mood trend, divergence, crisis events, assessments, open alerts — **never raw journal/chat text**) → `ai-service POST /api/chat/summary` → `generate_clinical_summary()` (same model chain, temp 0.3, deterministic template fallback).
 
 ## Conventions to preserve
 
@@ -51,10 +57,15 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 
 ## Gotchas verified in this codebase
 
-- **README prose is stale on the LLM.** Badges/sections say "Gemma 4B via Ollama (local)"; the actual chat backend is NVIDIA Minimax cloud (`main.py` root response and `nvidia_client.py` are the source of truth). Trust the code, not the README, on the model.
+- **LLM latency is the #1 trap.** Minimax M2.7 is a reasoning model: measured 20-40s replies with 60s+ stalls. The mobile global axios timeout is **8s** — chat overrides it per-request to 60s (`postData(..., { timeout: 60000 })`). If chat "always returns the same message", check `modelUsed` in the response: `fallback_*` means the chain bottomed out; an 8s client timeout means the user only ever sees the offline line.
+- **README prose is stale on the LLM.** Badges/sections say "Gemma 4B via Ollama (local)"; the actual chat backend is the NVIDIA model chain (`nvidia_client.py` is the source of truth). Trust the code, not the README, on the model.
 - **`mobile-app/src/utils/api.js` `BASE_URL` is a hardcoded LAN IP.** Physical-device testing requires editing it to the dev machine's WiFi IPv4 (the file documents the candidates). Android emulator uses `10.0.2.2`.
 - **`ai-service/main.py` registers 9 routers** including `anomaly` (LSTM autoencoder) and a 15-feature `predict`; some README tables list 8/14 — the running app is the authority.
-- Firestore composite indexes are created via console URLs printed in backend logs on first query; there is no `firestore.indexes.json` to deploy.
+- Firestore composite indexes are created via console URLs printed in backend logs on first query; there is no `firestore.indexes.json` to deploy. The dashboard and `/api/assessments` GET currently fetch-by-uid and filter client-side to dodge missing indexes (deliberate demo-scale tradeoff).
+- **`users.topFactors` is written on every mood log** (moodRoutes step 8) — the dashboard SHAP panel reads it; older patients fall back to the latest mood log's factors.
+- **Dashboard browser notifications**: `useAlerts` (`dashboard/src/hooks/usePatients.js`) fires a `Notification` for each newly-added unresolved alert (skips the initial snapshot; `tag` dedups). Closed-browser delivery needs Web Push + service worker — roadmap, not built.
+- **Wearable alerts are already multi-signal**: `biometricRoutes.js` computes a weighted stress score (HR 30% / HRV 35% / steps 20% / sleep 15%) against personal baselines and re-runs the 15-feature XGBoost with 7-day mood context; the alert gate is `stress > 0.55 || riskScore > 0.60`. The Home screen long-press demo trigger depends on that 0.55 gate — don't raise it before the demo.
+- **Demo scaffolding to remove after the hackathon**: hidden long-press triggers in `Home.js` (crisis biometrics, data-source toggle).
 
 ## Reference docs in repo
-`README.md` (deep feature/model walkthrough), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`.
+`README.md` (deep feature/model walkthrough — stale in places, see gotchas), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`, **`docs/NIRANTHARA_V2_MASTER_PLAN.md`** (architecture review, roadmap, feature tiers), **`docs/DEMO_RUNBOOK.md`** (startup order, demo script, failure playbook).
