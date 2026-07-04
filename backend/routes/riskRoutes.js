@@ -5,6 +5,7 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 
 const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
@@ -42,7 +43,7 @@ const buildFeatureVector = async (uid, db) => {
 }
 
 // GET /api/risk/score/:uid — XGBoost risk + SHAP factors
-router.get('/score/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/score/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const features = await buildFeatureVector(req.params.uid, db)
     const riskRes  = await axios.post(`${AI_URL}/api/predict/risk`, features, { timeout: 12000 })
@@ -53,7 +54,7 @@ router.get('/score/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/risk/history/:uid — 30-day risk trajectory
-router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const ago = new Date(); ago.setDate(ago.getDate() - 30)
     const snap = await db.collection('moodLogs')
@@ -72,7 +73,7 @@ router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/risk/explain/:uid — Full SHAP explanation
-router.get('/explain/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/explain/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const features = await buildFeatureVector(req.params.uid, db)
     const explainRes = await axios.post(`${AI_URL}/api/predict/explain`, features, { timeout: 15000 })

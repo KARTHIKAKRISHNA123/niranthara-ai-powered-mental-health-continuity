@@ -6,6 +6,7 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 const { validatePeriodLog } = require('../utils/validators')
 
@@ -100,7 +101,7 @@ router.put('/log-period-end', verifyToken, async (req, res) => {
 })
 
 // GET /api/cycle/today/:uid — current ML-predicted vulnerability (no fixed day rules)
-router.get('/today/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/today/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const doc = await db.collection('cycleLogs').doc(req.params.uid).get()
     if (!doc.exists) {
@@ -120,7 +121,7 @@ router.get('/today/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/cycle/history/:uid
-router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const doc = await db.collection('cycleLogs').doc(req.params.uid).get()
     if (!doc.exists) return res.json({ periodHistory: [], message: 'No cycle history yet' })
@@ -132,7 +133,7 @@ router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/cycle/predict/:uid — next period + vulnerability window from LSTM
-router.get('/predict/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/predict/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const predictRes = await axios.get(`${AI_URL}/api/cycle/predict/${req.params.uid}`, { timeout: 8000 })
     res.json(predictRes.data)

@@ -6,12 +6,13 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireClinician, requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 
 const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
 
 // GET /api/clinician/patients — All patients sorted by XGBoost risk_score
-router.get('/patients', generalLimiter, verifyToken, async (req, res) => {
+router.get('/patients', generalLimiter, verifyToken, requireClinician, async (req, res) => {
   try {
     const snap = await db.collection('users')
       .where('assignedClinician', '==', req.user.uid)
@@ -26,7 +27,7 @@ router.get('/patients', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/clinician/patient/:uid — Full data + NLP results
-router.get('/patient/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/patient/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const uid = req.params.uid
 
@@ -58,7 +59,7 @@ router.get('/patient/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/clinician/summary/:uid — Gemma AI narrative summary
-router.get('/summary/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const uid = req.params.uid
     const [userDoc, moodSnap] = await Promise.all([
@@ -85,7 +86,7 @@ router.get('/summary/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // POST /api/clinician/flag/:uid — Manual flag
-router.post('/flag/:uid', verifyToken, async (req, res) => {
+router.post('/flag/:uid', verifyToken, requireClinician, async (req, res) => {
   try {
     const { reason } = req.body
     await db.collection('clinicianAlerts').add({
@@ -101,7 +102,7 @@ router.post('/flag/:uid', verifyToken, async (req, res) => {
 })
 
 // GET /api/clinician/alerts — Unresolved alerts
-router.get('/alerts', generalLimiter, verifyToken, async (req, res) => {
+router.get('/alerts', generalLimiter, verifyToken, requireClinician, async (req, res) => {
   try {
     const snap = await db.collection('clinicianAlerts')
       .where('clinicianUid', '==', req.user.uid)
@@ -115,7 +116,7 @@ router.get('/alerts', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // PUT /api/clinician/resolve-alert/:id
-router.put('/resolve-alert/:id', verifyToken, async (req, res) => {
+router.put('/resolve-alert/:id', verifyToken, requireClinician, async (req, res) => {
   try {
     await db.collection('clinicianAlerts').doc(req.params.id).update({
       resolved: true, resolvedAt: new Date().toISOString()

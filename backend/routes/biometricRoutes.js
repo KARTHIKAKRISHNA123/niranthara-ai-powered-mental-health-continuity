@@ -11,6 +11,7 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken   = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 const { sendClinicianCrisisAlert } = require('../services/notificationService')
 
@@ -88,13 +89,13 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
     const logRef = await db.collection('biometricLogs').add(biometricLog)
 
     // ── 4. Update user doc with latest biometric snapshot ─────────────────────
-    await db.collection('users').doc(uid).update({
+    await db.collection('users').doc(uid).set({
       lastBiometricSync:  new Date().toISOString(),
       lastHrvDeviation:   Math.round(hrvDeviation * 100) / 100,
       lastHr:             heartRate || null,
       lastHrv:            hrv       || null,
       physiologicalStress: Math.round(physiologicalStressScore * 100) / 100,
-    })
+    }, { merge: true })
 
     // ── 5. Re-run XGBoost risk with biometric context ─────────────────────────
     let riskData = null
@@ -126,11 +127,11 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       riskData = riskRes.data
 
       // Update user risk level with biometric-aware score
-      await db.collection('users').doc(uid).update({
+      await db.collection('users').doc(uid).set({
         riskScore:  riskData.riskScore,
         riskLevel:  riskData.riskLevel,
         updatedAt:  new Date().toISOString(),
-      })
+      }, { merge: true })
 
       // ── 6. Clinician alert if physiological stress spike ─────────────────────
       const spikeAlert = physiologicalStressScore > 0.55 || riskData.riskScore > 0.60
@@ -186,7 +187,7 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/passive/biometrics/:uid  — Latest biometric snapshot for dashboard
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/biometrics/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/biometrics/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const snap = await db.collection('biometricLogs')
       .where('uid', '==', req.params.uid)

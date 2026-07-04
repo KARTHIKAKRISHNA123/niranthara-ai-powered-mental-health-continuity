@@ -4,6 +4,7 @@ const express = require('express')
 const router  = express.Router()
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { passiveLimiter, generalLimiter } = require('../middleware/rateLimiter')
 const { validatePassiveLog, validateGPSEntropy } = require('../utils/validators')
 const baselineService = require('../services/baselineService')
@@ -142,7 +143,7 @@ router.post('/sync-batch', verifyToken, async (req, res) => {
 })
 
 // GET /api/passive/summary/:uid — 7-day passive summary for Home screen widgets
-router.get('/summary/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const sevenAgo = new Date(); sevenAgo.setDate(sevenAgo.getDate() - 7)
     const snap = await db.collection('passiveLogs')
@@ -173,7 +174,7 @@ router.get('/summary/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/passive/today/:uid
-router.get('/today/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/today/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const snap = await db.collection('passiveLogs')
@@ -189,7 +190,7 @@ router.get('/today/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // PUT /api/passive/update-baseline/:uid
-router.put('/update-baseline/:uid', verifyToken, async (req, res) => {
+router.put('/update-baseline/:uid', verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const result = await baselineService.computeAndSaveBaseline(req.params.uid)
     res.json({ message: 'Baseline recomputed', baseline: result })

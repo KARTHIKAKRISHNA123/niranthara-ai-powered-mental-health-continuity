@@ -6,6 +6,7 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { nlpLimiter, generalLimiter } = require('../middleware/rateLimiter')
 const { encrypt } = require('../utils/encryption')
 const { validateMoodLog } = require('../utils/validators')
@@ -137,7 +138,7 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/mood/weekly/:uid
-router.get('/weekly/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/weekly/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const ago = new Date(); ago.setDate(ago.getDate() - 7)
     const snap = await db.collection('moodLogs').where('uid', '==', req.params.uid).where('createdAt', '>=', ago.toISOString()).orderBy('createdAt', 'desc').get()
@@ -147,7 +148,7 @@ router.get('/weekly/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/mood/monthly/:uid
-router.get('/monthly/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/monthly/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const ago = new Date(); ago.setDate(ago.getDate() - 30)
     const snap = await db.collection('moodLogs').where('uid', '==', req.params.uid).where('createdAt', '>=', ago.toISOString()).orderBy('createdAt', 'desc').get()
@@ -158,7 +159,7 @@ router.get('/monthly/:uid', generalLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/mood/history/:uid — paginated
-router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const { limit = 20, startAfter } = req.query
     let q = db.collection('moodLogs').where('uid', '==', req.params.uid).orderBy('createdAt', 'desc').limit(Number(limit))
