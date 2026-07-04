@@ -37,7 +37,7 @@ function formatTime(date) {
   return date?.toLocaleTimeString?.('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) || '';
 }
 
-export default function ChatScreen() {
+export default function ChatScreen({ navigation }) {
   const { currentUser } = useAuth();
   const [messages, setMessages] = useState([INITIAL_MSG]);
   const [input, setInput]       = useState('');
@@ -182,16 +182,10 @@ export default function ChatScreen() {
         modelUsed: result.data.modelUsed,
         isCrisis:  result.data.isCrisis,
       });
-      // Show crisis resources if detected
+      // Crisis detected by mental-roberta: open the full support screen —
+      // helplines, grounding, breathing — not a dismissable popup.
       if (result.data.isCrisis) {
-        Alert.alert(
-          'We are here for you',
-          'It sounds like you may be in distress. Please reach out to iCall: 9152987821',
-          [
-            { text: 'Call iCall', onPress: () => {} },
-            { text: 'Continue chatting', style: 'cancel' },
-          ],
-        );
+        navigation.navigate('CrisisSupport', { fromDetection: true });
       }
     } else {
       addMessage(
@@ -235,6 +229,15 @@ export default function ChatScreen() {
           <Text style={styles.headerTitle}>Niranthara</Text>
           <Text style={styles.headerSub}>Powered by Minimax M2.7 · NVIDIA Cloud · Private</Text>
         </View>
+        <TouchableOpacity
+          style={styles.supportBtn}
+          onPress={() => navigation.navigate('CrisisSupport')}
+          accessibilityLabel="Open support and helplines"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="life-buoy" size={14} color={COLORS.roseDark} />
+          <Text style={styles.supportBtnText}>Support</Text>
+        </TouchableOpacity>
         <View style={[styles.statusDot, { backgroundColor: loading ? COLORS.warning : COLORS.sage }]} />
       </View>
 
@@ -345,6 +348,21 @@ const styles = StyleSheet.create({
   statusDot: {
     width: 8, height: 8,
     borderRadius: 4,
+  },
+  supportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.roseLight,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minHeight: 28,
+  },
+  supportBtnText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.roseDark,
   },
 
   // Chat

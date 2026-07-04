@@ -537,6 +537,25 @@ export default function HomeScreen({ navigation }) {
           <Feather name="chevron-right" size={17} color={COLORS.roseDark} />
         </TouchableOpacity>
 
+        {/* Wellbeing check: PHQ-9 (validated instrument) */}
+        <TouchableOpacity
+          style={[s.jitaiCard, { backgroundColor: COLORS.warmWhite, borderWidth: 1, borderColor: COLORS.cardBorder }]}
+          onPress={() => navigation.navigate('Assessment', { type: 'phq9' })}
+          onLongPress={() => navigation.navigate('Assessment', { type: 'gad7' })}
+          delayLongPress={600}
+          activeOpacity={0.75}
+          accessibilityLabel="Take the PHQ-9 wellbeing check. Long press for the GAD-7 anxiety check."
+        >
+          <View style={[s.jitaiIconBox, { backgroundColor: COLORS.lavenderLight }]}>
+            <Feather name="clipboard" size={18} color={COLORS.lavenderDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.cardTitle, { color: COLORS.charcoal }]}>Wellbeing check</Text>
+            <Text style={s.cardSub}>PHQ-9 · 9 questions · about 2 minutes</Text>
+          </View>
+          <Feather name="chevron-right" size={17} color={COLORS.warmGray} />
+        </TouchableOpacity>
+
         {/* JITAI: Breathing */}
         {riskScore > 0.5 && (
           <TouchableOpacity style={[s.jitaiCard, { backgroundColor: COLORS.sageLight }]} onPress={() => navigation.navigate('SomaticBreathing')} activeOpacity={0.75} accessibilityLabel="Begin breathing exercise">

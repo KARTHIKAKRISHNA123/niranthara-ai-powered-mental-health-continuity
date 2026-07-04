@@ -22,6 +22,8 @@ import CycleScreen            from '../screens/Cycle';
 import InsightsScreen         from '../screens/Insights';
 import CBTReframeScreen       from '../screens/interventions/CBTReframe';
 import SomaticBreathingScreen from '../screens/interventions/SomaticBreathing';
+import CrisisSupportScreen    from '../screens/CrisisSupport';
+import AssessmentScreen       from '../screens/Assessment';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -131,6 +133,8 @@ export default function AppNavigator() {
             <Stack.Screen name="Insights"         component={InsightsScreen} />
             <Stack.Screen name="SomaticBreathing" component={SomaticBreathingScreen} />
             <Stack.Screen name="CBTReframe"       component={CBTReframeScreen} />
+            <Stack.Screen name="CrisisSupport"    component={CrisisSupportScreen} options={{ animation: 'fade', animationDuration: 200 }} />
+            <Stack.Screen name="Assessment"       component={AssessmentScreen} />
           </>
         )}
       </Stack.Navigator>
