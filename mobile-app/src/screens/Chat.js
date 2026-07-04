@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
-import { postData } from '../utils/api';
+import { postData, api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 // Try to import expo-audio (SDK 52+). Fall back gracefully if not installed.
@@ -52,6 +52,32 @@ export default function ChatScreen() {
   useEffect(() => {
     setVoiceAvailable(!!AudioModule);
   }, []);
+
+  // Restore prior conversation so context survives app restarts (continuity).
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!currentUser?.uid) return;
+      try {
+        const res = await api.get(`/chat/thread/${currentUser.uid}`);
+        const turns = res.data?.turns || [];
+        if (mounted && turns.length) {
+          setMessages([
+            INITIAL_MSG,
+            ...turns.map((t, i) => ({
+              id: `h${i}`,
+              text: t.content,
+              sender: t.role === 'assistant' ? 'ai' : 'user',
+              time: t.time ? new Date(t.time) : new Date(),
+            })),
+          ]);
+        }
+      } catch (e) {
+        // Offline or no history — keep the greeting.
+      }
+    })();
+    return () => { mounted = false; };
+  }, [currentUser?.uid]);
 
   // Mic pulse animation when recording
   useEffect(() => {
@@ -131,9 +157,15 @@ export default function ChatScreen() {
     setInput('');
     setLoading(true);
 
+    // Send recent turns (excluding the static greeting) so the model has memory
+    const history = messages
+      .filter(m => m.id !== '0')
+      .slice(-8)
+      .map(m => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.text }));
+
     const result = await postData(
       '/chat/message',
-      { message: text, uid: currentUser?.uid },
+      { message: text, uid: currentUser?.uid, history },
       'chatLogs',
     );
 

@@ -23,6 +23,11 @@ def get_crisis_pipe():
     return _crisis_pipe
 
 
+class ChatTurn(BaseModel):
+    role:    str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message:             str
     language:            Optional[str] = "en"
@@ -32,6 +37,7 @@ class ChatRequest(BaseModel):
     risk_level:          Optional[str]   = "low"
     emotion_detected:    Optional[str]   = "neutral"
     sentiment_score:     Optional[float] = 0.5
+    history:             Optional[list[ChatTurn]] = None
 
 
 class TranscribeRequest(BaseModel):
@@ -57,7 +63,8 @@ async def chat(request: ChatRequest):
     detected_lang = detect_language(request.message)
     lang = detected_lang if detected_lang != "en" else (request.language or "en")
 
-    # Generate Gemma response with full context
+    # Generate response with full context + prior turns for multi-turn memory
+    history = [t.model_dump() for t in request.history] if request.history else None
     ai_result = await generate_response(
         message             = request.message,
         language            = lang,
@@ -65,7 +72,9 @@ async def chat(request: ChatRequest):
         mood_score          = request.mood_score          or 3.0,
         risk_level          = request.risk_level          or "low",
         emotion_detected    = request.emotion_detected    or "neutral",
-        sentiment_score     = request.sentiment_score     or 0.5
+        sentiment_score     = request.sentiment_score     or 0.5,
+        crisis_probability  = crisis_prob,
+        history             = history
     )
 
     suggestions = []

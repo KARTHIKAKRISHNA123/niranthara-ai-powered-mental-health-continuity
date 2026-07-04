@@ -6,8 +6,9 @@ const router  = express.Router()
 const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
+const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { chatLimiter, generalLimiter } = require('../middleware/rateLimiter')
-const { encrypt } = require('../utils/encryption')
+const { encrypt, decrypt } = require('../utils/encryption')
 const { validateChatMessage } = require('../utils/validators')
 
 const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
@@ -16,10 +17,18 @@ const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
 router.post('/message', chatLimiter, verifyToken, async (req, res) => {
   try {
     const uid = req.user.uid
-    const { message, language } = req.body
+    const { message, language, history } = req.body
 
     const validation = validateChatMessage(req.body)
     if (!validation.valid) return res.status(400).json({ error: validation.error })
+
+    // Sanitise prior turns from the client into the shape the AI service expects
+    const safeHistory = Array.isArray(history)
+      ? history
+          .filter(t => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string')
+          .slice(-8)
+          .map(t => ({ role: t.role, content: t.content.slice(0, 2000) }))
+      : []
 
     // Pull user context (risk level, cycle vulnerability, recent mood)
     const [userDoc, cycleDoc, recentMoodSnap] = await Promise.all([
@@ -40,7 +49,8 @@ router.post('/message', chatLimiter, verifyToken, async (req, res) => {
       mood_score:           lastMood.moodScore         || 3,
       risk_level:           user.riskLevel             || 'low',
       emotion_detected:     lastMood.nlpResults?.emotionLabel    || 'neutral',
-      sentiment_score:      lastMood.nlpResults?.sentimentScore  || 0.5
+      sentiment_score:      lastMood.nlpResults?.sentimentScore  || 0.5,
+      history:              safeHistory
     }
 
     const aiRes = await axios.post(`${AI_URL}/api/chat`, contextPayload, { timeout: 45000 })
@@ -145,7 +155,7 @@ router.post('/voice', chatLimiter, verifyToken, async (req, res) => {
 })
 
 // GET /api/chat/history/:uid
-router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
+router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const snap = await db.collection('chatLogs')
       .where('uid', '==', req.params.uid)
@@ -161,8 +171,33 @@ router.get('/history/:uid', generalLimiter, verifyToken, async (req, res) => {
   }
 })
 
+// GET /api/chat/thread/:uid — caller's OWN conversation, decrypted, chronological.
+// Self-only: raw chat content is private — not exposed even to the assigned clinician.
+// Used by the mobile app to restore context across restarts (continuity).
+router.get('/thread/:uid', generalLimiter, verifyToken, async (req, res) => {
+  try {
+    if (req.user.uid !== req.params.uid) {
+      return res.status(403).json({ error: 'Forbidden — chat content is private' })
+    }
+    const snap = await db.collection('chatLogs')
+      .where('uid', '==', req.params.uid)
+      .orderBy('timestamp', 'desc').limit(30).get()
+
+    const turns = []
+    snap.docs.reverse().forEach(d => {            // chronological order
+      const data     = d.data()
+      const userText = data.userMessage ? decrypt(data.userMessage) : ''
+      if (userText)     turns.push({ role: 'user',      content: userText,     time: data.timestamp })
+      if (data.aiReply) turns.push({ role: 'assistant', content: data.aiReply, time: data.timestamp })
+    })
+    res.json({ turns })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // DELETE /api/chat/clear/:uid
-router.delete('/clear/:uid', verifyToken, async (req, res) => {
+router.delete('/clear/:uid', verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const snap = await db.collection('chatLogs').where('uid', '==', req.params.uid).get()
     const batch = db.batch()
