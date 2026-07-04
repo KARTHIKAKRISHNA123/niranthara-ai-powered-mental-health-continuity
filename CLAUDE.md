@@ -1,0 +1,60 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Niranthara is an AI mental-health *continuity* platform: passive monitoring of depression triggers, just-in-time interventions (JITAI), and a clinician dashboard with real-time risk intelligence. It is a multi-service monorepo, not a single app.
+
+## Five services (each is independently run)
+
+| Dir | Stack | Port | Run |
+|---|---|---|---|
+| `ai-service/` | Python 3.11 · FastAPI · PyTorch · XGBoost · HuggingFace | 8000 | `uvicorn main:app --reload --port 8000` |
+| `backend/` | Node 20 · Express · Firebase Admin · node-cron | 5000 | `node index.js` (no `start`/`test` script — `npm test` is a stub) |
+| `dashboard/` | React 18 · Vite 5 · Firebase Web SDK | 5173 (vite) | `npm run dev` · `npm run build` · `npm run lint` |
+| `mobile-app/` | React Native · Expo SDK 50 | — | `npm start` / `expo start` (`--android` / `--ios`) |
+| `smartwatch/` | Node · Express | — | `npm run dev` (nodemon) / `npm start` |
+
+There is **no test suite** wired up anywhere (no pytest config, backend `test` is `exit 1`). Verify changes by running the relevant service, not by running tests.
+
+### Python environment caveat
+The committed `ai-service/venv` is pinned to `C:\Python313\python.exe`, which does not exist on every machine, and there is no `python` on PATH in this environment. You generally **cannot run or `py_compile` the Python service here** — review Python edits by inspection. Pydantic is v2 (`model_dump()`, `Optional[list[X]]` are valid). Dependencies: `ai-service/requirements.txt`.
+
+## Architecture: how the services talk
+
+```
+mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-service :8000 ──▶ NVIDIA cloud (chat)
+     │                              │                          │
+     └── offline-first AsyncStorage │                          └── local HF models (NLP), XGBoost, per-user LSTM/JITAI pkl
+                                    ▼
+                         Firebase Firestore (shared state) ◀── dashboard (onSnapshot live reads)
+```
+
+- **`backend` is an orchestration layer.** It owns auth, encryption, Firestore writes, and cron schedulers; it proxies all ML/NLP work to `ai-service`. The AI service URL is `process.env.AI_SERVICE_URL` (default `http://localhost:8000`).
+- **Firestore is the integration bus.** Backend writes (`users`, `moodLogs`, `cycleLogs`, `chatLogs`, `clinicianAlerts`, `jitaiLogs`); the dashboard reacts via `onSnapshot` (see `dashboard/src/hooks/usePatients.js`). There are no REST calls from dashboard → backend for the live patient list.
+- **Cron is started inside `backend/index.js` `app.listen`**: `jitaiScheduler` (hourly receptivity sweep) and `escalationCron` (`startEscalationCron()`, runs every 15 min for crisis + loss-of-follow-up). Editing scheduler cadence means editing those service files, not config.
+
+### The two pipelines that span files
+
+1. **Mood check-in → risk.** `POST /api/mood/log` (`backend/routes/moodRoutes.js`) is the heavy path: AES-encrypt journal → call ai-service sentiment + emotion + crisis in parallel → compute mood/sentiment divergence → pull cycle vulnerability (LSTM) → assemble XGBoost features → write `moodLogs` + update `users.riskLevel`, and write a `clinicianAlerts` doc if crisis. To change risk behavior you touch both `moodRoutes.js` and `ai-service/routers/predict.py`.
+
+2. **Chat.** `mobile Chat.js → backend /api/chat/message → ai-service /api/chat → NVIDIA`. `chatRoutes.js` enriches the message with live user context (cycle/mood/risk/emotion from Firestore) and forwards recent conversation turns; `ai-service/routers/chat.py` runs a crisis classifier (`mental-roberta`), detects language, and calls `utils/nvidia_client.py`. The model is **Minimax M2.7 via NVIDIA's OpenAI-compatible API** (`AsyncOpenAI`, base_url `integrate.api.nvidia.com`), with a static warm fallback if `NVIDIA_API_KEY` is missing or the call fails. Multi-turn memory works by threading `history` (client state → backend → ai-service `messages` array), not by re-reading Firestore.
+
+## Conventions to preserve
+
+- **ML-first, "zero hardcoding".** Clinical decisions come from a trained model or NLP classifier; rule-based branches exist only as network/`fallback_*` paths and are explicitly labeled. Don't add keyword matching to make something "work" — wire it to the model.
+- **Stack is JavaScript only** (no TypeScript), functional React with hooks, async/await. Mobile/dashboard styles are co-located (`StyleSheet.create`, theme constants in `mobile-app/src/theme/theme.js`).
+- **Secrets / required local files (gitignored, must exist to run):** `backend/serviceAccountKey.json` (Firebase Admin), `backend/.env` (`PORT`, `AI_SERVICE_URL`, encryption key), `ai-service/.env` (`NVIDIA_API_KEY`, Sarvam keys), `dashboard/.env` and `mobile-app/src/utils/firebase.js` (Firebase web config). `.env.example` files exist for backend and smartwatch.
+- **Journal text and chat messages are AES-256-GCM encrypted** before Firestore (`backend/utils/encryption.js`); `/chat/history` strips the encrypted field before returning.
+- **Auth:** every protected backend route uses `middleware/verifyToken.js` (Firebase `verifyIdToken`), exposing `req.user.uid`. Mobile injects the Firebase JWT via the Axios interceptor in `mobile-app/src/utils/api.js`.
+
+## Gotchas verified in this codebase
+
+- **README prose is stale on the LLM.** Badges/sections say "Gemma 4B via Ollama (local)"; the actual chat backend is NVIDIA Minimax cloud (`main.py` root response and `nvidia_client.py` are the source of truth). Trust the code, not the README, on the model.
+- **`mobile-app/src/utils/api.js` `BASE_URL` is a hardcoded LAN IP.** Physical-device testing requires editing it to the dev machine's WiFi IPv4 (the file documents the candidates). Android emulator uses `10.0.2.2`.
+- **`ai-service/main.py` registers 9 routers** including `anomaly` (LSTM autoencoder) and a 15-feature `predict`; some README tables list 8/14 — the running app is the authority.
+- Firestore composite indexes are created via console URLs printed in backend logs on first query; there is no `firestore.indexes.json` to deploy.
+
+## Reference docs in repo
+`README.md` (deep feature/model walkthrough), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`.
