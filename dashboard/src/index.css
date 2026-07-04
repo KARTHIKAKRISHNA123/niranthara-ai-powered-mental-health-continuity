@@ -138,9 +138,6 @@ a:hover { text-decoration: underline; }
   color:          var(--rose-dark);
   margin-bottom:  var(--sp-xxl);
   letter-spacing: 1px;
-  display:        flex;
-  align-items:    center;
-  gap:            var(--sp-md);
 }
 .logo span { color: var(--lavender); }
 

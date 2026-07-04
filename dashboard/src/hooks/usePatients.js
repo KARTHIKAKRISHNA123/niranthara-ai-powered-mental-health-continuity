@@ -46,13 +46,17 @@ export function useAlerts(clinicianUid) {
 
     const q = query(
       collection(db, 'clinicianAlerts'),
-      where('clinicianUid', '==', clinicianUid),
-      where('resolved', '==', false),
-      orderBy('timestamp', 'desc')
+      where('clinicianUid', '==', clinicianUid)
     )
 
     const unsub = onSnapshot(q, (snap) => {
-      setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(alert => alert.resolved === false)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      setAlerts(data)
+      setLoading(false)
+    }, (err) => {
+      console.error('useAlerts error:', err)
       setLoading(false)
     })
 

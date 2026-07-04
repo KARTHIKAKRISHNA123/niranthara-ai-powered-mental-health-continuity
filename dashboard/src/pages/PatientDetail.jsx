@@ -232,17 +232,23 @@ export default function PatientDetail() {
     const load = async () => {
       try {
         const thirtyAgo = new Date(); thirtyAgo.setDate(thirtyAgo.getDate() - 30)
-        const [userSnap, moodSnap] = await Promise.all([
-          getDoc(doc(db, 'users', uid)),
-          getDocs(query(
-            collection(db, 'moodLogs'),
-            where('uid', '==', uid),
-            where('createdAt', '>=', thirtyAgo.toISOString()),
-            orderBy('createdAt', 'asc')
-          ))
-        ])
-        if (userSnap.exists()) setPatient({ id: uid, ...userSnap.data() })
-        setMoodLogs(moodSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+        
+        // Fetch user first so it doesn't fail if logs fail
+        const userSnap = await getDoc(doc(db, 'users', uid))
+        if (userSnap.exists()) {
+          setPatient({ id: uid, ...userSnap.data() })
+        }
+
+        try {
+          // Fetch all user's mood logs and filter client-side to avoid Firebase composite index errors
+          const moodSnap = await getDocs(query(collection(db, 'moodLogs'), where('uid', '==', uid)))
+          const logs = moodSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .filter(l => new Date(l.createdAt) >= thirtyAgo)
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          setMoodLogs(logs)
+        } catch (e) {
+          console.warn('Could not load mood logs (index missing?)', e)
+        }
       } catch (e) { console.error(e) }
       setLoading(false)
     }
