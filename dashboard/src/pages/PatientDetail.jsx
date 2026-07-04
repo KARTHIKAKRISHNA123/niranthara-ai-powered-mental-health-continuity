@@ -222,7 +222,9 @@ export default function PatientDetail() {
   const { clinician } = useAuth()
   const [patient,   setPatient]   = useState(null)
   const [moodLogs,  setMoodLogs]  = useState([])
+  const [assessments, setAssessments] = useState([])
   const [summary,   setSummary]   = useState('')
+  const [summaryLoading, setSummaryLoading] = useState(false)
   const [loading,   setLoading]   = useState(true)
   const [flagging,  setFlagging]  = useState(false)
   const [flagOpen,  setFlagOpen]  = useState(false)
@@ -249,6 +251,16 @@ export default function PatientDetail() {
         } catch (e) {
           console.warn('Could not load mood logs (index missing?)', e)
         }
+
+        try {
+          // PHQ-9 / GAD-7 history — same client-side filter approach
+          const assessSnap = await getDocs(query(collection(db, 'assessments'), where('uid', '==', uid)))
+          const items = assessSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          setAssessments(items)
+        } catch (e) {
+          console.warn('Could not load assessments', e)
+        }
       } catch (e) { console.error(e) }
       setLoading(false)
     }
@@ -256,6 +268,7 @@ export default function PatientDetail() {
   }, [uid])
 
   const fetchSummary = async () => {
+    setSummaryLoading(true)
     try {
       const token = await import('firebase/auth').then(m => m.getAuth().currentUser?.getIdToken())
       const r = await fetch(`${API}/api/clinician/summary/${uid}`, {
@@ -265,6 +278,8 @@ export default function PatientDetail() {
       setSummary(d.summary || '')
     } catch {
       setSummary('Summary generation failed — AI service may be offline')
+    } finally {
+      setSummaryLoading(false)
     }
   }
 
@@ -320,7 +335,15 @@ export default function PatientDetail() {
   if (loading) return <div style={{ padding: 40, color: 'var(--warm-gray)' }}>Loading patient…</div>
   if (!patient) return <div style={{ padding: 40 }}>Patient not found</div>
 
-  const shap = patient.topFactors || []
+  // users.topFactors is written on every mood log; fall back to the latest
+  // mood log's factors for patients seeded before that write existed.
+  const shap = patient.topFactors?.length
+    ? patient.topFactors
+    : (moodLogs[moodLogs.length - 1]?.topFactors || [])
+
+  const latestAssessment = (type) => [...assessments].reverse().find(a => a.type === type)
+  const phq9 = latestAssessment('phq9')
+  const gad7 = latestAssessment('gad7')
 
   return (
     <div className="dashboard-layout">
@@ -452,20 +475,82 @@ export default function PatientDetail() {
             )}
           </div>
 
-          {/* Gemma AI narrative */}
+          {/* AI clinical narrative — structured signals only, never raw journal text */}
           <div className="card">
-            <div style={{ fontWeight: 500, marginBottom: 'var(--sp-lg)' }}>AI Clinical Summary</div>
-            <div className="muted mono" style={{ fontSize: 10, marginBottom: 'var(--sp-lg)' }}>Gemma 4B via Ollama</div>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>AI Clinical Summary</div>
+            <div className="muted mono" style={{ fontSize: 10, marginBottom: 'var(--sp-lg)' }}>
+              Minimax M2.7 · NVIDIA Cloud · from structured signals, not journal text
+            </div>
             {summary ? (
-              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--charcoal)', margin: 0 }}>{summary}</p>
+              <>
+                <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--charcoal)', margin: 0 }}>{summary}</p>
+                <button
+                  className="btn-ghost"
+                  onClick={fetchSummary}
+                  disabled={summaryLoading}
+                  style={{ marginTop: 'var(--sp-lg)', fontSize: 12 }}
+                >
+                  {summaryLoading ? 'Regenerating…' : 'Regenerate'}
+                </button>
+              </>
             ) : (
               <div>
                 <p className="muted" style={{ marginBottom: 'var(--sp-lg)', fontSize: 13 }}>
-                  Generate a Gemma 4B narrative summary of this patient's recent history
+                  The last 30 days — mood trend, risk trajectory, assessments and
+                  alerts — condensed into five clinical sentences.
                 </p>
-                <button className="btn-primary" onClick={fetchSummary}>
-                  Generate Summary
+                <button className="btn-primary" onClick={fetchSummary} disabled={summaryLoading}>
+                  {summaryLoading ? 'Generating…' : 'Generate Summary'}
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* Validated assessments: PHQ-9 / GAD-7 */}
+          <div className="card" style={{ gridColumn: '1/-1' }}>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>Validated Assessments</div>
+            <div className="muted mono" style={{ fontSize: 10, marginBottom: 'var(--sp-lg)' }}>
+              PHQ-9 (depression) · GAD-7 (anxiety) · self-administered in app
+            </div>
+            {assessments.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 'var(--sp-xl)', alignItems: 'start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-md)' }}>
+                  {[{ label: 'PHQ-9', a: phq9 }, { label: 'GAD-7', a: gad7 }].map(({ label, a }) => (
+                    <div key={label} className="stat-tile" style={{ textAlign: 'center' }}>
+                      <div className="stat-number" style={{ fontSize: 26 }}>
+                        {a ? `${a.score}/${a.maxScore}` : '—'}
+                      </div>
+                      <div style={{ fontWeight: 500, fontSize: 12 }}>{label}</div>
+                      <div className="muted mono" style={{ fontSize: 10, textTransform: 'capitalize' }}>
+                        {a ? `${a.severity} · ${new Date(a.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}` : 'not yet taken'}
+                      </div>
+                      {a?.selfHarmFlag && (
+                        <div style={{ fontSize: 10, color: 'var(--alert)', fontWeight: 500, marginTop: 4 }}>
+                          Item 9 flagged — review
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={assessments.map(a => ({
+                    date: new Date(a.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
+                    phq9: a.type === 'phq9' ? a.score : null,
+                    gad7: a.type === 'gad7' ? a.score : null,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F2D9DC" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8A8076' }} />
+                    <YAxis domain={[0, 27]} tick={{ fontSize: 11, fill: '#8A8076' }} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #F2D9DC', fontFamily: 'DM Sans' }} />
+                    <Legend />
+                    <Line type="monotone" dataKey="phq9" name="PHQ-9" stroke="#C97B84" strokeWidth={2} connectNulls dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="gad7" name="GAD-7" stroke="#9B8EC4" strokeWidth={2} connectNulls dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="muted" style={{ fontSize: 13 }}>
+                No assessments yet — the patient can take the PHQ-9 from the app home screen.
               </div>
             )}
           </div>
