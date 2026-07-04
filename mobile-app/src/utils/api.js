@@ -11,7 +11,7 @@ import NetInfo from '@react-native-community/netinfo';
 // Current machine IPs (run ipconfig to verify which one your phone reaches):
 //   10.140.84.36  ← use this if phone is on institute WiFi
 //   192.168.70.1  ← use this if phone is on a hotspot
-const BASE_URL = 'http://192.168.70.1r5000/api';
+const BASE_URL = 'http://10.140.84.36:5000/api';
 
 export const api = axios.create({
   baseURL: BASE_URL,

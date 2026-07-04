@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, ScrollView, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
 import { api, postData } from '../utils/api';
