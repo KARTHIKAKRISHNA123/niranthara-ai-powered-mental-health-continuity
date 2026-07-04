@@ -61,9 +61,9 @@ cd mobile-app ; npm start
 
 **Smoke test (2 minutes, every time):**
 1. `http://localhost:8000/` → shows the 9-model roster.
-2. Phone: send one chat message → reply arrives with "Minimax M2.7" tag (not fallback).
+2. Phone: send one chat message → reply arrives tagged "Minimax M2.7" or "Llama 3.1 · fast lane" (both are real model replies; only an untagged bubble means static fallback). Expect up to ~25 s for Minimax — the typing indicator covers it; the fast lane answers in 1-2 s when Minimax stalls.
 3. Phone: Home → Sync Biometrics → card fills.
-4. Dashboard: patient visible in list with risk badge.
+4. Dashboard: patient visible in list with risk badge, and the browser asked for notification permission — click Allow (backgrounded-tab alerts).
 
 ---
 
