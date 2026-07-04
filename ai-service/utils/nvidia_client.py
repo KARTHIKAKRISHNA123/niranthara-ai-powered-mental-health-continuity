@@ -1,6 +1,7 @@
 # utils/gemma_client.py — Minimax-m2.7 via NVIDIA API (Swapped from local Gemma)
 import os
 import re
+import random
 from openai import AsyncOpenAI
 import logging
 
@@ -15,7 +16,14 @@ if NVIDIA_API_KEY:
 else:
     client = None
 
-MODEL_NAME = "minimaxai/minimax-m2.7"
+MODEL_NAME = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m2.7")
+
+# Minimax is a reasoning model on a shared endpoint: measured latency ranges
+# 20s to 60s+ timeouts. The chain below keeps replies real when it stalls:
+# Minimax (bounded) -> fast instruct model (~1-2s) -> static text (last resort).
+FAST_MODEL         = os.getenv("NVIDIA_FAST_MODEL", "meta/llama-3.1-8b-instruct")
+PRIMARY_TIMEOUT_S  = float(os.getenv("NVIDIA_PRIMARY_TIMEOUT", "25"))
+FALLBACK_TIMEOUT_S = float(os.getenv("NVIDIA_FALLBACK_TIMEOUT", "10"))
 
 SYSTEM_PROMPT = """You are Niranthara, a compassionate AI mental health companion. You deeply understand English and Tanglish (code-mixed English used in India).
 
@@ -41,10 +49,22 @@ LANGUAGE_INSTRUCTION = {
     "en": "Respond in clear, warm English.",
 }
 
+# Rotating variants so even the offline path never repeats the same line
+# twice in a row (a single static string reads as "the bot is broken").
 FALLBACK_RESPONSES = {
-    "en": "I'm here with you. What you're feeling is valid. Would you like to tell me more about what's on your mind today?",
-    "tanglish": "Naan ungaludan irukkiraen. Neengal feel panradhellam valid. Indha nerathil enna nadakuthu nu solluveengala?"
+    "en": [
+        "I'm here with you. What you're feeling is valid. Would you like to tell me more about what's on your mind today?",
+        "That sounds heavy to carry. I'm listening — can you tell me a little more about what today has been like?",
+        "Thank you for putting that into words. Whatever you're feeling right now is allowed. What part of it weighs the most?",
+    ],
+    "tanglish": [
+        "Naan ungaludan irukkiraen. Neengal feel panradhellam valid. Indha nerathil enna nadakuthu nu solluveengala?",
+        "Idhu romba kashtama irukkum pola. Naan kekkiren — konjam solluveengala, innaiku eppadi irundhadhu?",
+    ],
 }
+
+def _static_fallback(language: str) -> str:
+    return random.choice(FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]))
 
 # Output-side SAFETY guardrail (not a clinical decision — a hard floor under the LLM).
 # The system prompt is the primary defense; this catches the case where the model
@@ -105,7 +125,7 @@ async def generate_response(
     """
     if not client:
         return {
-            "reply": FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]),
+            "reply": _static_fallback(language),
             "modelUsed": "fallback_missing_nvidia_key"
         }
 
@@ -117,42 +137,51 @@ async def generate_response(
 
     # Keep only the most recent turns so the prompt stays bounded
     prior = [t for t in (history or []) if t.get("role") in ("user", "assistant") and t.get("content")][-8:]
+    messages = [
+        {"role": "system", "content": system_content},
+        *prior,
+        {"role": "user", "content": prompt}
+    ]
 
-    try:
-        completion = await client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_content},
-                *prior,
-                {"role": "user", "content": prompt}
-            ],
-            temperature=1.0,
-            top_p=0.95,
-            max_tokens=1024,  # minimax-m2.7 is a reasoning model: tokens are shared between
-                              # hidden reasoning_content and the visible reply. 250 risked an
-                              # empty reply (→ static fallback) once reasoning grew; 1024 gives headroom.
-            stream=False
-        )
-        
-        reply = completion.choices[0].message.content.strip()
-        if not reply:
-            raise ValueError("Empty response from NVIDIA API")
+    # Model chain: primary (reasoning, high quality, slow/variable) then fast
+    # instruct model (~1-2s). max_tokens 1024 on minimax because tokens are
+    # shared between hidden reasoning_content and the visible reply.
+    last_error = None
+    for model, timeout_s, max_toks in [
+        (MODEL_NAME, PRIMARY_TIMEOUT_S,  1024),
+        (FAST_MODEL, FALLBACK_TIMEOUT_S, 400),
+    ]:
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=1.0,
+                top_p=0.95,
+                max_tokens=max_toks,
+                stream=False,
+                timeout=timeout_s,
+            )
+            reply = (completion.choices[0].message.content or "").strip()
+            if not reply:
+                raise ValueError(f"Empty response from {model}")
 
-        reply, blocked = apply_output_guardrail(reply)
-        return {
-            "reply": reply,
-            "modelUsed": "nvidia-minimax-m2.7",
-            "guardrailBlocked": blocked
-        }
+            reply, blocked = apply_output_guardrail(reply)
+            return {
+                "reply": reply,
+                "modelUsed": f"nvidia-{model.split('/')[-1]}",
+                "guardrailBlocked": blocked
+            }
+        except Exception as e:
+            last_error = e
+            logging.warning(f"NVIDIA {model} failed, trying next tier: {str(e)}")
 
-    except Exception as e:
-        logging.error(f"NVIDIA API Error: {str(e)}")
-        # Graceful fallback — warm static response, NOT keyword-matched
-        return {
-            "reply":      FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["en"]),
-            "modelUsed":  "fallback_api_error",
-            "fallbackReason": str(e)
-        }
+    logging.error(f"All NVIDIA models failed: {str(last_error)}")
+    # Graceful last resort — warm static response, NOT keyword-matched
+    return {
+        "reply":          _static_fallback(language),
+        "modelUsed":      "fallback_api_error",
+        "fallbackReason": str(last_error)
+    }
 
 
 # ── Clinician-facing summary ─────────────────────────────────────────────────
@@ -204,23 +233,30 @@ async def generate_clinical_summary(stats: dict) -> dict:
         if stats.get(key) not in (None, "", []):
             lines.append(f"{label}: {stats[key]}")
 
-    try:
-        completion = await client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
-                {"role": "user", "content": "30-day structured signals:\n" + "\n".join(lines)},
-            ],
-            temperature=0.3,
-            top_p=0.9,
-            max_tokens=1024,
-            stream=False,
-        )
-        summary = completion.choices[0].message.content.strip()
-        if not summary:
-            raise ValueError("Empty summary from NVIDIA API")
-        return {"summary": summary, "modelUsed": "nvidia-minimax-m2.7"}
-    except Exception as e:
-        logging.error(f"NVIDIA summary error: {str(e)}")
-        return {"summary": _fallback_summary(stats), "modelUsed": "fallback_api_error"}
+    summary_messages = [
+        {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+        {"role": "user", "content": "30-day structured signals:\n" + "\n".join(lines)},
+    ]
+    for model, timeout_s, max_toks in [
+        (MODEL_NAME, PRIMARY_TIMEOUT_S,  1024),
+        (FAST_MODEL, FALLBACK_TIMEOUT_S, 400),
+    ]:
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=summary_messages,
+                temperature=0.3,
+                top_p=0.9,
+                max_tokens=max_toks,
+                stream=False,
+                timeout=timeout_s,
+            )
+            summary = (completion.choices[0].message.content or "").strip()
+            if not summary:
+                raise ValueError(f"Empty summary from {model}")
+            return {"summary": summary, "modelUsed": f"nvidia-{model.split('/')[-1]}"}
+        except Exception as e:
+            logging.warning(f"NVIDIA summary via {model} failed: {str(e)}")
+
+    return {"summary": _fallback_summary(stats), "modelUsed": "fallback_api_error"}
 

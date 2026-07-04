@@ -2,8 +2,9 @@
 // Chatbot: Minimax M2.7 via NVIDIA Cloud API.
 //   - Text goes: Mobile → Node backend → Python FastAPI → NVIDIA API (Minimax M2.7)
 //   - Context injected: cycle phase, mood score, risk level, emotion detected
-//   - Response time: 1–5s via NVIDIA cloud (no local GPU required)
-//   - Fallback: warm static message if AI service unreachable
+//   - Response time: 20-40s typical (Minimax is a reasoning model); fast-lane
+//     Llama fallback kicks in server-side when Minimax stalls
+//   - Fallback: rotating warm static messages if everything is unreachable
 // Voice: expo-audio (expo-av is deprecated and will be removed in SDK 54)
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -25,6 +26,20 @@ try {
 } catch (e) {
   // expo-audio not installed — voice input disabled gracefully
 }
+
+// Rotating local fallbacks — a single static line reads as "the bot is broken".
+const LOCAL_FALLBACKS = [
+  "I'm here with you. It sounds like you might be going through something difficult. Would you like to tell me more?",
+  "I'm listening. Whatever you're carrying right now, you don't have to hold it alone — what's on your mind?",
+  "That sounds like a lot. Take your time — I'm here, and I'd like to understand more about how today has been.",
+];
+
+const MODEL_LABELS = [
+  { match: 'minimax', label: 'Minimax M2.7' },
+  { match: 'llama',   label: 'Llama 3.1 · fast lane' },
+];
+const modelLabel = (modelUsed) =>
+  MODEL_LABELS.find(m => modelUsed?.includes(m.match))?.label || null;
 
 const INITIAL_MSG = {
   id: '0',
@@ -163,10 +178,14 @@ export default function ChatScreen({ navigation }) {
       .slice(-8)
       .map(m => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.text }));
 
+    // 60s timeout: Minimax is a reasoning model (20-40s typical). The global
+    // 8s axios timeout was aborting every reply, so the user only ever saw
+    // the identical offline message — the "repeating chatbot" bug.
     const result = await postData(
       '/chat/message',
       { message: text, uid: currentUser?.uid, history },
       'chatLogs',
+      { timeout: 60000 },
     );
 
     setLoading(false);
@@ -189,7 +208,7 @@ export default function ChatScreen({ navigation }) {
       }
     } else {
       addMessage(
-        "I'm here with you. It sounds like you might be going through something difficult. Would you like to tell me more?",
+        LOCAL_FALLBACKS[Math.floor(Math.random() * LOCAL_FALLBACKS.length)],
         'ai',
         { modelUsed: 'fallback' },
       );
@@ -211,8 +230,8 @@ export default function ChatScreen({ navigation }) {
             <Text style={[styles.timeText, isAi ? { color: COLORS.warmGray } : { color: 'rgba(255,255,255,0.6)' }]}>
               {formatTime(item.time)}
             </Text>
-            {item.modelUsed && !item.modelUsed.startsWith('fallback') && (
-              <Text style={styles.modelTag}>Minimax M2.7</Text>
+            {modelLabel(item.modelUsed) && (
+              <Text style={styles.modelTag}>{modelLabel(item.modelUsed)}</Text>
             )}
           </View>
         </View>

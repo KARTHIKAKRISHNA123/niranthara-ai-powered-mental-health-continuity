@@ -28,13 +28,15 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Wrapper for offline-first architecture
-export const postData = async (endpoint, data, collection) => {
+// Wrapper for offline-first architecture.
+// `config` allows per-request overrides — chat needs a much longer timeout
+// than the global 8s because the LLM (reasoning model) can take 20-40s.
+export const postData = async (endpoint, data, collection, config = {}) => {
   const state = await NetInfo.fetch();
-  
+
   if (state.isConnected && state.isInternetReachable !== false) {
     try {
-      const response = await api.post(endpoint, data);
+      const response = await api.post(endpoint, data, config);
       return { success: true, data: response.data };
     } catch (error) {
       console.warn(`API Error on ${endpoint}:`, error.message);
