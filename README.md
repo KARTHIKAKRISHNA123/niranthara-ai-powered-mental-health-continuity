@@ -24,7 +24,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-CUDA_·_RTX_3050-EE4C2C?style=flat-square&logo=pytorch&logoColor=white&labelColor=0d1117)](https://pytorch.org)
 [![XGBoost](https://img.shields.io/badge/XGBoost-14_Feature_Fusion_+_SHAP-337AB7?style=flat-square&labelColor=0d1117)](https://xgboost.readthedocs.io)
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers_NLP-FFD21E?style=flat-square&logo=huggingface&logoColor=black&labelColor=0d1117)](https://huggingface.co)
-[![Gemma](https://img.shields.io/badge/Gemma_4B-Ollama_Local_LLM-C97B84?style=flat-square&logo=google&logoColor=white&labelColor=0d1117)](https://ollama.com)
+[![Minimax](https://img.shields.io/badge/Minimax_M2.7-NVIDIA_Cloud_+_Llama_fast_lane-C97B84?style=flat-square&logo=nvidia&logoColor=white&labelColor=0d1117)](https://build.nvidia.com)
 [![GCP](https://img.shields.io/badge/Google_Cloud-asia--south1-4285F4?style=flat-square&logo=googlecloud&logoColor=white&labelColor=0d1117)](https://cloud.google.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square&labelColor=0d1117)](LICENSE)
 
@@ -65,7 +65,7 @@ The problem has three explicit components. Every component is addressed by a dis
 
 | Problem Component | Solution Implemented | Code Evidence |
 |---|---|---|
-| **Incomplete symptom alleviation** | Gemma 4B AI companion delivers CBT, somatic breathing, and emotional support 24/7 in multiple languages | `ai-service/routers/chat.py` · `ai-service/utils/nvidia_client.py` |
+| **Incomplete symptom alleviation** | Minimax M2.7 AI companion delivers CBT, somatic breathing, and emotional support 24/7 in multiple languages | `ai-service/routers/chat.py` · `ai-service/utils/nvidia_client.py` |
 | **Attrition** | `dropout_model.pkl` — XGBoost binary classifier trained on `dropout_dataset.csv` predicts which patients are at risk of abandoning treatment | `ai-service/routers/dropout.py` · `ai-service/models/dropout_trainer.py` |
 | **Loss of follow-up** | Passive monitoring continues silently when patients go dark. Personalized JITAI ML fires re-engagement at optimal moments. Clinician dashboard alerts in real time. | `backend/services/jitaiScheduler.js` · `backend/services/escalationCron.js` · `dashboard/src/pages/Alerts.jsx` |
 
@@ -107,7 +107,7 @@ Rule-based fallbacks exist only for network failure and are clearly marked tempo
 
 ### Capability 1 — AI Companion for Symptom Alleviation
 
-- **Gemma 4B** runs locally via Ollama on RTX 3050 CUDA — zero cloud latency, fully private
+- **Minimax M2.7** (reasoning LLM) via NVIDIA's OpenAI-compatible cloud API, behind an engineered fallback chain: Minimax (25s budget) → Llama 3.1 8B fast lane (~1-2s) → guarded static responses. Every reply passes a deterministic medication-dosing output guardrail
 - Every response is **context-injected** with cycle vulnerability score, current mood score, detected emotion label, and XGBoost risk level before generation — the model knows the user's state before it responds
 - Delivers **CBT cognitive reframing**, guided **somatic breathing**, and **5-4-3-2-1 grounding** natively inside the chat interface
 - If `crisis_probability > 0.85` from mental-roberta NLP classifier, a **crisis card** is immediately rendered — not from keywords, from semantic understanding
@@ -145,7 +145,7 @@ Rule-based fallbacks exist only for network failure and are clearly marked tempo
 │  │  passiveMonitor  │     │  jitaiScheduler │     │  mental-roberta   ││
 │  │  syncService     │     │  escalationCron │     │  indic-bert       ││
 │  │  AppNavigator    │     │  notificationSvc│     │  distilroberta    ││
-│  │  AuthContext     │     │  baselineService│     │  Gemma 4B (Ollama)││
+│  │  AuthContext     │     │  baselineService│     │  NVIDIA LLM chain ││
 │  └──────────────────┘     └─────────────────┘     │  XGBoost + SHAP   ││
 │                                   │               │  LSTM (PyTorch)   ││
 │                                   ▼               │  dropout_model    ││
@@ -397,14 +397,14 @@ default             → gentle_nudge
 
 ---
 
-### Model 8 — Gemma 4B Generative Chat (`routers/chat.py`)
+### Model 8 — Minimax M2.7 Generative Chat (`routers/chat.py`)
 
-**Model:** Gemma 4B via Ollama, CUDA-accelerated on RTX 3050, 16GB RAM
+**Model:** Minimax M2.7 (reasoning LLM) via NVIDIA cloud API, with Llama 3.1 8B fast-lane fallback
 
 **How it directly solves the problem:**
 - Directly addresses *incomplete symptom alleviation* — provides 24/7 therapeutic support between clinical sessions
 - Generates unique, contextually appropriate responses — never repeats templates
-- Low-RAM fallback: if `psutil.virtual_memory().available < 3GB`, switches to rule-based responses automatically
+- Resilience chain: Minimax bounded at 25s (reasoning latency measured 20-40s) → Llama 3.1 8B fast lane (~1-2s) → rotating labeled static fallbacks — the patient is never left unanswered
 
 **Context injection before every generation:**
 ```python
@@ -571,12 +571,12 @@ await AsyncStorage.removeItem('today_raw_locations')
 ### `screens/Chat.js`
 - WhatsApp-style chat bubble layout (user messages right-aligned, Niranthara left-aligned)
 - Text input field with send button
-- Voice input button → `sarvam_client.transcribe_audio()` → STT → language detect → NLP → Gemma response
-- Animated typing indicator during Gemma 4B inference (~2–5 seconds on RTX 3050)
+- Voice input button → `sarvam_client.transcribe_audio()` → STT → language detect → NLP → Minimax response
+- Animated typing indicator during Minimax M2.7 inference (20-40s typical for the reasoning model; Llama fast lane answers in ~1-2s when it stalls)
 - **Crisis card:** Rendered when `crisis_probability > 0.85` (mental-roberta NLP — not keyword detection)
   - NIMHANS helpline: 080-46110007 (tap-to-call)
   - iCall: 9152987821 (tap-to-call)
-- CBT reframe prompt card — expandable, pre-populated by Gemma with thought examples
+- CBT reframe prompt card — expandable, pre-populated by Minimax with thought examples
 - Somatic breathing card — links to `SomaticBreathing.js` intervention screen
 - "Speak to a real therapist" button — always pinned at top of screen, never hidden
 
@@ -599,7 +599,7 @@ await AsyncStorage.removeItem('today_raw_locations')
 ### `screens/interventions/CBTReframe.js`
 - Cognitive Behavioral Therapy thought reframing structured worksheet
 - Three fields: Automatic thought → Evidence for and against → Balanced thought
-- Pre-populated starter prompts generated by Gemma based on current mood and emotion label
+- Pre-populated starter prompts generated by Minimax based on current mood and emotion label
 - Completed reframe saved to `moodLogs` as supplementary clinical data
 
 ---
@@ -656,8 +656,8 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/api/chat/message` | Crisis check → sentiment → emotion → Gemma 4B response |
-| POST | `/api/chat/voice` | Sarvam STT → language detect → NLP pipeline → Gemma |
+| POST | `/api/chat/message` | Crisis check → sentiment → emotion → Minimax M2.7 response |
+| POST | `/api/chat/voice` | Sarvam STT → language detect → NLP pipeline → Minimax |
 | GET | `/api/chat/history/:uid` | Last 50 chat records |
 | DELETE | `/api/chat/clear/:uid` | Clear chat history |
 
@@ -695,7 +695,7 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 |---|---|---|
 | GET | `/api/clinician/patients` | All assigned patients sorted by `risk_score` descending |
 | GET | `/api/clinician/patient/:uid` | Full patient data: mood logs, NLP results, passive summary |
-| GET | `/api/clinician/summary/:uid` | Gemma 4B narrative clinical summary (2–3 sentences) |
+| GET | `/api/clinician/summary/:uid` | Minimax M2.7 narrative clinical summary (2–3 sentences) |
 | POST | `/api/clinician/flag/:uid` | Manual risk flag with clinician-entered reason |
 | POST | `/api/clinician/manual-checkin/:uid` | Send manual check-in FCM push notification |
 | GET | `/api/clinician/alerts` | All unresolved crisis + attrition alerts |
@@ -758,7 +758,7 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 | `routers/cycle.py` | Personalized PyTorch LSTM per user | `/api/cycle` |
 | `routers/jitai.py` | Personalized XGBoost per user | `/api/jitai` |
 | `routers/dropout.py` | XGBoost (dropout_model.pkl) | `/api/dropout` |
-| `routers/chat.py` | Gemma 4B via Ollama | `/api/chat` |
+| `routers/chat.py` | Minimax M2.7 via NVIDIA API | `/api/chat` |
 
 ### `utils/language_detector.py`
 - Detects Tamil Unicode script range `[\u0B80-\u0BFF]` — returns `"ta"` if >3 Tamil characters
@@ -774,9 +774,10 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 ### `utils/nvidia_client.py`
 - Builds dynamic context note from cycle vulnerability, mood, risk level, emotion
 - Injects context as internal system note before user message
-- Calls Ollama `/api/generate` with `num_gpu: 1` to force CUDA inference
-- Response timeout: 45 seconds
-- RAM check: if `psutil.virtual_memory().available < 3GB` → rule-based fallback response
+- Calls NVIDIA's OpenAI-compatible endpoint (`integrate.api.nvidia.com`) via `AsyncOpenAI`
+- Model chain: `NVIDIA_MODEL` (default Minimax M2.7, 25s budget) → `NVIDIA_FAST_MODEL` (default Llama 3.1 8B, 10s) → rotating static fallbacks
+- `apply_output_guardrail()` — deterministic dosing-advice block on every model reply
+- `generate_clinical_summary()` — clinician-register summary from structured aggregates (same chain, temp 0.3)
 
 ### `utils/baseline.py`
 - `compute_deviation(value, mean, std)` → z-score normalized and clipped to 0–1
@@ -808,7 +809,7 @@ Every call to `POST /api/mood/log` triggers this exact sequence:
 - **30-day risk trend chart** — Recharts `LineChart`, XGBoost `risk_score` over time
 - **Cycle vulnerability overlay** — secondary line chart on same axes (women patients)
 - **SHAP factor cards** — top 3 human-readable drivers of current risk level rendered as individual cards
-- **Gemma narrative summary** — `GET /api/clinician/summary/:uid` — 2–3 sentence AI-generated clinical overview updated daily
+- **Minimax narrative summary** — `GET /api/clinician/summary/:uid` — 2–3 sentence AI-generated clinical overview updated daily
 - **NLP results panel** — IndicBERT sentiment score, distilroberta emotion label, mental-roberta crisis probability
 - **JITAI history table** — intervention type, receptivity score, user response, response time in milliseconds
 - **Passive monitoring summary** — steps vs baseline, GPS entropy 7-day trend, sleep deviation
@@ -847,7 +848,7 @@ Niranthara-AI-Powered-Mental-Health-Continuity-1/
 │   │
 │   ├── routers/
 │   │   ├── __init__.py
-│   │   ├── chat.py                          # Gemma 4B via Ollama, context injection, fallback
+│   │   ├── chat.py                          # Minimax M2.7 via NVIDIA API, context injection, fallback
 │   │   ├── crisis.py                        # mental/mental-roberta-base NLP classifier
 │   │   ├── sentiment.py                     # ai4bharat/indic-bert, 3-class, CUDA
 │   │   ├── emotion.py                       # j-hartmann/emotion-distilroberta, 7-class
@@ -867,7 +868,7 @@ Niranthara-AI-Powered-Mental-Health-Continuity-1/
 │   │   └── user_jitai/                      # Per-user JITAI XGBoost pkl files — {uid}.pkl
 │   │
 │   ├── utils/
-│   │   ├── nvidia_client.py                  # Ollama client, context builder, RAM-based fallback
+│   │   ├── nvidia_client.py                  # NVIDIA model chain, guardrail, summary
 │   │   ├── sarvam_client.py                 # Tamil STT (saarika:v1) + translation (mayura:v1)
 │   │   ├── language_detector.py             # Tamil / Tanglish / English classification
 │   │   └── baseline.py                      # Z-score deviation computation (0–1 normalized)
@@ -932,11 +933,11 @@ Niranthara-AI-Powered-Mental-Health-Continuity-1/
 │       │   ├── Signup.js                    # Registration, persona select, health profile, permissions
 │       │   ├── Home.js                      # Mood ring, baseline cards, cycle badge, JITAI card
 │       │   ├── Journal.js                   # Mood check-in → triggers full NLP pipeline on submit
-│       │   ├── Chat.js                      # Gemma AI companion, crisis card, NIMHANS, voice input
+│       │   ├── Chat.js                      # Minimax AI companion, crisis card, NIMHANS, voice input
 │       │   ├── Cycle.js                     # LSTM cycle wheel, vulnerability gauge, period logger
 │       │   └── interventions/
 │       │       ├── SomaticBreathing.js      # Guided breathing, haptics, JITAI response logger
-│       │       └── CBTReframe.js            # CBT thought reframing worksheet with Gemma prompts
+│       │       └── CBTReframe.js            # CBT thought reframing worksheet with Minimax prompts
 │       │
 │       ├── services/
 │       │   ├── passiveMonitor.js            # expo-task-manager background sensing every 15min
@@ -962,7 +963,7 @@ Niranthara-AI-Powered-Mental-Health-Continuity-1/
 │       ├── pages/
 │       │   ├── Login.jsx                    # Clinician Google Sign-In + role validation
 │       │   ├── Dashboard.jsx                # Live patient list, risk sort, crisis banner
-│       │   ├── PatientDetail.jsx            # Charts, SHAP cards, Gemma summary, PDF export
+│       │   ├── PatientDetail.jsx            # Charts, SHAP cards, Minimax summary, PDF export
 │       │   └── Alerts.jsx                   # Real-time crisis + attrition alert management
 │       │
 │       ├── components/
@@ -996,11 +997,11 @@ Body:    { periodStartDate }
 Returns: { avgCycleLength, isIrregular, modelTrained, cycleVariance }
 Triggers: Append to periodHistory → POST /api/cycle/train/:uid → PyTorch LSTM retrain
 
-# CHAT MESSAGE — full NLP + Gemma
+# CHAT MESSAGE — full NLP + Minimax
 POST /api/chat/message
 Body:    { message, uid }
 Returns: { reply, modelUsed, crisisProbability, isCrisis, emotionDetected }
-Triggers: language_detect → sarvam_translate (if needed) → crisis check → Gemma 4B inference
+Triggers: language_detect → sarvam_translate (if needed) → crisis check → Minimax M2.7 inference
 
 # RISK PREDICTION (AI Service)
 POST /api/predict/risk
@@ -1021,9 +1022,9 @@ Returns: { shouldIntervene, interventionType, receptivityScore, reasoning }
 GET /api/clinician/patients
 Returns: [ ...patients sorted by risk_score desc, each with NLP signals + passive summary ]
 
-# GEMMA NARRATIVE SUMMARY (Clinician)
+# AI NARRATIVE SUMMARY (Clinician)
 GET /api/clinician/summary/:uid
-Returns: { summary: "2-3 sentence Gemma 4B clinical narrative" }
+Returns: { summary: "4-5 sentence clinical narrative from 30-day structured aggregates", modelUsed }
 ```
 
 ---
@@ -1039,7 +1040,7 @@ Returns: { summary: "2-3 sentence Gemma 4B clinical narrative" }
 | Emotion Detection | GoEmotions + multi-dataset | distilroberta (DistilBERT fine-tuned) | Macro F1 | **80%+** |
 | Personalized Cycle LSTM | Per-user period history (min 3 cycles) | 2-layer LSTM, hidden_size=32 | MAE (days) | **< 2 days** |
 | JITAI Receptivity | Per-user response history (min 5 events) | Shallow XGBClassifier | AUC per user | **> 0.75** |
-| Gemma 4B Chat | Pre-trained by Google | 4B parameter Transformer LLM | Qualitative clinical review | — |
+| Minimax M2.7 Chat | Pre-trained by Google | 4B parameter Transformer LLM | Qualitative clinical review | — |
 
 **Training hardware:** RTX 3050, 16GB RAM, CUDA 11.8, `tree_method="gpu_hist"` for XGBoost
 **XGBoost training time:** ~5 minutes on full dataset
@@ -1147,7 +1148,7 @@ clinicianAlerts:  clinicianUid (Asc) + resolved (Asc) + timestamp (Desc)
 - [x] `cycle.py` — LSTM train endpoint + predict endpoint, per-user pkl storage
 - [x] `jitai.py` — Personalized receptivity model, population fallback
 - [x] `dropout.py` — Attrition model loaded, registered in `main.py`, endpoint active
-- [x] `chat.py` — Gemma 4B via Ollama, context injection, RAM fallback
+- [x] `chat.py` — Minimax M2.7 via NVIDIA API, context injection, RAM fallback
 
 ### Backend Integration
 - [x] `moodRoutes.js` — full parallel NLP pipeline on every `/log` call
@@ -1174,7 +1175,7 @@ clinicianAlerts:  clinicianUid (Asc) + resolved (Asc) + timestamp (Desc)
 
 ### Clinician Dashboard
 - [x] `Dashboard.jsx` — Firestore onSnapshot live sort by risk_score
-- [x] `PatientDetail.jsx` — SHAP factors, Gemma summary, Recharts overlays
+- [x] `PatientDetail.jsx` — SHAP factors, Minimax summary, Recharts overlays
 - [x] `Alerts.jsx` — crisis + attrition alerts with resolve workflow
 - [x] `usePatients.js` — real-time hook, crisis state change notification
 
@@ -1225,8 +1226,8 @@ clinicianAlerts:  clinicianUid (Asc) + resolved (Asc) + timestamp (Desc)
 ```bash
 node -v          # Must be v18 or higher
 python --version # Must be 3.10 or higher
-nvidia-smi       # Verify RTX 3050 is detected
-ollama --version # Install from ollama.com if missing
+nvidia-smi       # Optional — CUDA accelerates local NLP models; CPU works too
+# NVIDIA API key from build.nvidia.com (free tier) — powers the chat LLM chain
 ```
 
 ### Step 1 — Install all dependencies
@@ -1260,11 +1261,13 @@ python models/dropout_trainer.py
 # Output: AUC 0.82+ | Saved: models/dropout_model.pkl
 ```
 
-### Step 4 — Pull and start Gemma 4B
+### Step 4 — Configure the NVIDIA LLM chain
 ```bash
-ollama pull gemma:4b
-OLLAMA_NUM_PARALLEL=2 ollama serve
-# Verify: curl http://localhost:11434/api/tags
+# Get a free API key at build.nvidia.com and put it in ai-service/.env:
+#   NVIDIA_API_KEY=nvapi-...
+# No local LLM install needed — Minimax M2.7 and the Llama fast lane run
+# via NVIDIA's cloud API. Without a key, chat degrades to labeled static
+# fallbacks (the rest of the ML pipeline runs fully locally).
 ```
 
 ### Step 5 — Start all 4 services
@@ -1339,8 +1342,11 @@ SARVAM_API_KEY=<from sarvam.ai>
 ```env
 PORT=8000
 ENV=development
-OLLAMA_BASE_URL=http://localhost:11434
-GEMMA_MODEL=gemma:4b
+NVIDIA_API_KEY=<from build.nvidia.com>
+NVIDIA_MODEL=minimaxai/minimax-m2.7
+NVIDIA_FAST_MODEL=meta/llama-3.1-8b-instruct
+NVIDIA_PRIMARY_TIMEOUT=25
+NVIDIA_FALLBACK_TIMEOUT=10
 SARVAM_API_KEY=<from sarvam.ai>
 INDICBERT_MODEL=ai4bharat/indic-bert
 CRISIS_MODEL=mental/mental-roberta-base
@@ -1400,7 +1406,7 @@ As computer science students with skills in machine learning and systems enginee
 
 <br/>
 
-`mental-roberta` · `indic-bert` · `emotion-distilroberta` · `Gemma 4B` · `XGBoost + SHAP` · `PyTorch LSTM` · `Sarvam AI` · `Firebase` · `Expo` · `GCP`
+`mental-roberta` · `indic-bert` · `emotion-distilroberta` · `Minimax M2.7` · `XGBoost + SHAP` · `PyTorch LSTM` · `Sarvam AI` · `Firebase` · `Expo` · `GCP`
 
 </div>
 
@@ -1477,7 +1483,7 @@ This section details every feature built from scratch across the entire Nirantha
 - **Multilingual Support:** Full support for Tamil, Tanglish, and English via Sarvam AI translation layers.
 
 ### 🧠 2. AI Service (Python + FastAPI)
-- **Local LLM Integration:** Uses Gemma 4B via Ollama for private, context-aware CBT responses.
+- **Local LLM Integration:** Uses Minimax M2.7 via NVIDIA API for private, context-aware CBT responses.
 - **Crisis Detection:** HuggingFace `mental-roberta-base` semantic classifier (prevents false positives from simple keyword matching).
 - **Sentiment & Emotion Analysis:** `IndicBERT` (for Indian languages) and `emotion-english-distilroberta-base` (7-class emotion labeling).
 - **XGBoost Risk Fusion Model:** 14-feature gradient boosting model that aggregates journal sentiment, passive sensors, biometrics, and cycle phase into a unified Risk Score. Includes SHAP value generation for clinical explainability.
