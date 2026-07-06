@@ -1,7 +1,7 @@
 // dashboard/src/hooks/usePatients.js — Real-time Firestore patient data
 
 import { useState, useEffect, useRef } from 'react'
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 
 // Browser notification for a new alert — reaches the clinician even when the

@@ -114,16 +114,22 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 'var(--sp-xl)' }}>
           <h1 className="page-title" style={{ marginBottom: 0 }}>Patients</h1>
-          <div className="muted mono" style={{ textAlign: 'right', fontSize: 11 }}>
-            Real-time · Sorted by XGBoost risk score
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            <span className="live-indicator">Live · Firestore onSnapshot</span>
+            <span className="muted mono" style={{ fontSize: 11 }}>Sorted by XGBoost risk score</span>
           </div>
         </div>
 
         {/* Risk summary tiles */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'var(--sp-lg)', marginBottom: 'var(--sp-xl)' }}>
-          {['crisis', 'high', 'moderate', 'low'].map(level => (
-            <div key={level} className="stat-tile">
-              <div className="stat-number" style={{ color: `var(--risk-${level})` }}>
+          {[
+            ['crisis',   'var(--alert)'],
+            ['high',     'var(--risk-high-color)'],
+            ['moderate', 'var(--risk-mod-color)'],
+            ['low',      'var(--risk-low-color)'],
+          ].map(([level, color], i) => (
+            <div key={level} className={`stat-tile fade-in stagger-${i + 1}`}>
+              <div className="stat-number" style={{ color }}>
                 {riskCounts[level] || 0}
               </div>
               <RiskBadge level={level} />
@@ -138,12 +144,26 @@ export default function Dashboard() {
             <span className="mono" style={{ fontSize: 11, color: 'var(--warm-gray)' }}>{patients.length}</span>
           </div>
           {loading ? (
-            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>
-              Loading patients…
+            <div aria-busy="true" aria-label="Loading patients">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="skeleton-row">
+                  <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="skeleton" style={{ width: '40%', height: 12 }} />
+                    <div className="skeleton" style={{ width: '65%', height: 10 }} />
+                  </div>
+                  <div className="skeleton" style={{ width: 72, height: 22, borderRadius: 'var(--r-pill)' }} />
+                </div>
+              ))}
             </div>
           ) : patients.length === 0 ? (
-            <div style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>
-              No patients assigned yet
+            <div role="status" style={{ padding: 'var(--sp-xxl)', textAlign: 'center', color: 'var(--warm-gray)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--charcoal)', marginBottom: 6 }}>
+                No patients assigned yet
+              </div>
+              <div style={{ fontSize: 12 }}>
+                Patients appear here in real time once they are assigned to you.
+              </div>
             </div>
           ) : (
             patients.map(p => <PatientCard key={p.id} patient={p} />)

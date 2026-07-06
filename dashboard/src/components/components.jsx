@@ -131,7 +131,10 @@ export function PatientCard({ patient }) {
       role="button"
       tabIndex={0}
       aria-label={`View ${patient.name} — risk ${patient.riskLevel}`}
-      onKeyDown={e => e.key === 'Enter' && nav(`/patient/${patient.uid || patient.id}`)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') nav(`/patient/${patient.uid || patient.id}`)
+        if (e.key === ' ') { e.preventDefault(); nav(`/patient/${patient.uid || patient.id}`) }
+      }}
     >
       <div className="patient-avatar">{initial}</div>
       <div style={{ flex: 1 }}>

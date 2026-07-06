@@ -37,18 +37,18 @@ export default function Login() {
           Sign in with your clinician account
         </p>
         {error && (
-          <div style={{ background: '#FDEAE5', color: 'var(--alert)', padding: 'var(--sp-md)', borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-lg)', fontSize: 13 }}>
+          <div role="alert" style={{ background: '#FDEAE5', color: 'var(--alert)', padding: 'var(--sp-md)', borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-lg)', fontSize: 13 }}>
             {error}
           </div>
         )}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Email</label>
+            <label htmlFor="email" style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Email</label>
             <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="clinician@hospital.in" required autoComplete="email" />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Password</label>
-            <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+            <label htmlFor="password" style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Password</label>
+            <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" />
           </div>
           <button id="login-btn" type="submit" className="btn-primary" disabled={loading} style={{ marginTop: 'var(--sp-sm)' }}>
             {loading ? 'Signing in…' : 'Sign In'}

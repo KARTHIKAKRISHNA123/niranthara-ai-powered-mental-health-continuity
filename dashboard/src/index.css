@@ -81,11 +81,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Focus visibility — keyboard users get a clear ring, mouse users don't ── */
+:focus-visible {
+  outline: 2px solid var(--lavender-dark);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
 /* ── Typography ─────────────────────────────────────────────────────────── */
 h1, h2, h3, h4 {
   font-family: var(--font-display);
   font-weight: 400;
   line-height: 1.2;
+  text-wrap: balance;
 }
 h1 { font-size: 38px; }
 h2 { font-size: 26px; }
@@ -98,6 +106,7 @@ h4 { font-size: 16px; }
   letter-spacing: 0.5px;
   color:          var(--warm-gray);
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 a { color: var(--lavender-dark); text-decoration: none; }
@@ -240,6 +249,7 @@ a:hover { text-decoration: underline; }
   font-weight: 300;
   line-height: 1;
   margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
 }
 .stat-label {
   font-family:    var(--font-mono);
@@ -250,7 +260,8 @@ a:hover { text-decoration: underline; }
 }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
-button { cursor: pointer; font-family: var(--font-body); }
+button { cursor: pointer; font-family: var(--font-body); touch-action: manipulation; }
+button:disabled { cursor: default; opacity: 0.6; }
 
 .btn-primary {
   background:    var(--rose);
@@ -454,6 +465,83 @@ input:focus, textarea:focus, select:focus {
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-in { animation: fadeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Staggered entrance — apply alongside .fade-in for orchestrated page load */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.12s; }
+.stagger-3 { animation-delay: 0.19s; }
+.stagger-4 { animation-delay: 0.26s; }
+
+/* ── Live indicator — the real-time story, made visible ────────────────── */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+.live-indicator {
+  display:     inline-flex;
+  align-items: center;
+  gap:         6px;
+  font-family: var(--font-mono);
+  font-size:   10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color:       var(--sage-dark);
+}
+.live-indicator::before {
+  content:       '';
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  background:    var(--sage);
+  animation:     livePulse 2s ease-in-out infinite;
+}
+
+/* ── Crisis banner attention pulse — opacity only, no layout shift ─────── */
+@keyframes crisisGlow {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.crisis-banner { position: relative; }
+.crisis-banner::after {
+  content:       '';
+  position:      absolute;
+  inset:         -3px;
+  border:        2px solid var(--alert);
+  border-radius: calc(var(--r-md) + 3px);
+  opacity:       0;
+  pointer-events: none;
+  animation:     crisisGlow 2.4s ease-in-out infinite;
+}
+
+/* ── Skeleton loading — shimmer instead of spinner text ────────────────── */
+@keyframes shimmer {
+  0%   { opacity: 0.45; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.45; }
+}
+.skeleton {
+  background:    var(--rose-light);
+  border-radius: var(--r-sm);
+  animation:     shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-row {
+  display:     flex;
+  align-items: center;
+  gap:         var(--sp-lg);
+  padding:     var(--sp-lg) var(--sp-xl);
+  border-bottom: 1px solid var(--rose-light);
+  min-height:  64px;
+}
+.skeleton-row:last-child { border-bottom: none; }
+
+/* ── Reduced motion — one gesture of respect, applied globally ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }

@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { collection, query, where, orderBy, getDocs, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import { RiskBadge } from '../components/components'
@@ -332,8 +332,24 @@ export default function PatientDetail() {
     crisisProb: Math.round((l.nlpResults?.crisisProbability || 0) * 100),
   }))
 
-  if (loading) return <div style={{ padding: 40, color: 'var(--warm-gray)' }}>Loading patient…</div>
-  if (!patient) return <div style={{ padding: 40 }}>Patient not found</div>
+  if (loading) return (
+    <div style={{ padding: 40, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900 }}
+      aria-busy="true" aria-label="Loading patient">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="skeleton" style={{ width: 56, height: 56, borderRadius: '50%' }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="skeleton" style={{ width: '30%', height: 18 }} />
+          <div className="skeleton" style={{ width: '50%', height: 12 }} />
+        </div>
+      </div>
+      <div className="skeleton" style={{ height: 220, borderRadius: 'var(--r-md)' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="skeleton" style={{ height: 140, borderRadius: 'var(--r-md)' }} />
+        <div className="skeleton" style={{ height: 140, borderRadius: 'var(--r-md)' }} />
+      </div>
+    </div>
+  )
+  if (!patient) return <div role="status" style={{ padding: 40 }}>Patient not found</div>
 
   // users.topFactors is written on every mood log; fall back to the latest
   // mood log's factors for patients seeded before that write existed.
