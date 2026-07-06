@@ -11,6 +11,11 @@ os.environ["OPENBLAS_NUM_THREADS"] = "6"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "6"
 os.environ["NUMEXPR_NUM_THREADS"] = "6"
 
+# Load .env BEFORE importing routers — nvidia_client reads NVIDIA_API_KEY at
+# import time. Without this the chat LLM silently ran on static fallbacks.
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import chat, crisis, sentiment, emotion, predict, dropout, cycle, jitai, anomaly

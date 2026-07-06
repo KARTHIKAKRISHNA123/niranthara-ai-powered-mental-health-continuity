@@ -97,6 +97,18 @@ def _build_features(req: RiskRequest) -> np.ndarray:
     ]])
 
 
+def _select_class_shap(shap_values, risk_class: int):
+    """Normalize SHAP output across library versions: older SHAP returns a
+    list of per-class arrays, newer SHAP returns one (samples, features,
+    classes) array. Always returns a flat per-feature vector."""
+    if isinstance(shap_values, list):
+        return np.ravel(np.asarray(shap_values[risk_class])[0])
+    arr = np.asarray(shap_values)
+    if arr.ndim == 3:
+        return np.ravel(arr[0, :, risk_class])
+    return np.ravel(arr[0])
+
+
 @router.post("/risk")
 async def predict_risk(request: RiskRequest):
     if risk_model is None:
@@ -117,13 +129,10 @@ async def predict_risk(request: RiskRequest):
     risk_class  = int(risk_proba.argmax())
 
     shap_values = explainer.shap_values(features)
-    if isinstance(shap_values, list):
-        class_shap = shap_values[risk_class][0]
-    else:
-        class_shap = shap_values[0]
+    class_shap  = _select_class_shap(shap_values, risk_class)
 
     top_indices = np.argsort(np.abs(class_shap))[-3:][::-1]
-    top_factors = [FEATURE_DESCRIPTIONS[FEATURE_ORDER[i]] for i in top_indices]
+    top_factors = [FEATURE_DESCRIPTIONS[FEATURE_ORDER[int(i)]] for i in top_indices]
 
     return {
         "riskScore":    round(float(risk_proba.max()), 4),
@@ -141,13 +150,10 @@ async def explain_risk(request: RiskRequest):
         return {"error": "Model not loaded. Run model_trainer.py first."}
 
     features    = _build_features(request)
+    risk_proba  = risk_model.predict_proba(features)[0]
+    risk_class  = int(risk_proba.argmax())
     shap_values = explainer.shap_values(features)
-    if isinstance(shap_values, list):
-        risk_proba = risk_model.predict_proba(features)[0]
-        risk_class = int(risk_proba.argmax())
-        class_shap = shap_values[risk_class][0]
-    else:
-        class_shap = shap_values[0]
+    class_shap  = _select_class_shap(shap_values, risk_class)
 
     explanation = {FEATURE_ORDER[i]: round(float(class_shap[i]), 4) for i in range(len(FEATURE_ORDER))}
     return {"shapValues": explanation, "featureDescriptions": FEATURE_DESCRIPTIONS}

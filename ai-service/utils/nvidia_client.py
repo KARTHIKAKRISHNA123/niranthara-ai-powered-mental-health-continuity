@@ -11,7 +11,10 @@ NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 if NVIDIA_API_KEY:
     client = AsyncOpenAI(
         api_key=NVIDIA_API_KEY,
-        base_url="https://integrate.api.nvidia.com/v1"
+        base_url="https://integrate.api.nvidia.com/v1",
+        max_retries=0,  # the model chain IS the retry strategy — SDK retries
+                        # multiply each tier's timeout (measured 80s wall time
+                        # on a 25s budget before this was set)
     )
 else:
     client = None

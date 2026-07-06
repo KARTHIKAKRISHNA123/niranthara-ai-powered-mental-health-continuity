@@ -21,7 +21,7 @@ Niranthara is an AI mental-health *continuity* platform: passive monitoring of d
 There is **no test suite** wired up anywhere (no pytest config, backend `test` is `exit 1`). Verify changes by running the relevant service, not by running tests.
 
 ### Python environment caveat
-The committed `ai-service/venv` is pinned to `C:\Python313\python.exe`, which does not exist on every machine, and there is no `python` on PATH in this environment. You generally **cannot run or `py_compile` the Python service here** — review Python edits by inspection. Pydantic is v2 (`model_dump()`, `Optional[list[X]]` are valid). Dependencies: `ai-service/requirements.txt`.
+Use **`ai-service/.venv`** (CPython 3.11.15, built with `uv venv .venv --python 3.11`; deps via `uv pip install -r requirements.txt --python .venv\Scripts\python.exe`). Run: `.venv\Scripts\python.exe -m uvicorn main:app --port 8000`. The old committed `venv` (no dot) is pinned to a nonexistent `C:\Python313` — ignore it. `python`/`py` are broken uv shims on this machine; go through `uv` or the `.venv` interpreter directly. Set `PYTHONUTF8=1` when running scripts that print unicode (e.g. `download_models.py` crashes on cp1252 without it). Pydantic is v2.
 
 ## Architecture: how the services talk
 
@@ -57,6 +57,9 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 
 ## Gotchas verified in this codebase
 
+- **`main.py` must load `.env` before router imports** (`load_dotenv()` at the top) — `nvidia_client.py` reads `NVIDIA_API_KEY` at import time. Before this fix the service silently ran chat on static fallbacks unless the key happened to be in the shell env.
+- **OpenAI SDK retries multiply timeouts**: the NVIDIA client is created with `max_retries=0` because the model chain is the retry strategy — with default retries a 25s budget produced 80s wall time (measured). Worst-case chain time must stay under the backend's 45s axios timeout.
+- **SHAP output shape differs by version**: `predict.py`'s `_select_class_shap()` normalizes old (list per class) vs new ((samples, features, classes) array) SHAP output. Without it `/api/predict/risk` 500s on shap>=0.50.
 - **LLM latency is the #1 trap.** Minimax M2.7 is a reasoning model: measured 20-40s replies with 60s+ stalls. The mobile global axios timeout is **8s** — chat overrides it per-request to 60s (`postData(..., { timeout: 60000 })`). If chat "always returns the same message", check `modelUsed` in the response: `fallback_*` means the chain bottomed out; an 8s client timeout means the user only ever sees the offline line.
 - **README prose is stale on the LLM.** Badges/sections say "Gemma 4B via Ollama (local)"; the actual chat backend is the NVIDIA model chain (`nvidia_client.py` is the source of truth). Trust the code, not the README, on the model.
 - **`mobile-app/src/utils/api.js` `BASE_URL` is a hardcoded LAN IP.** Physical-device testing requires editing it to the dev machine's WiFi IPv4 (the file documents the candidates). Android emulator uses `10.0.2.2`.

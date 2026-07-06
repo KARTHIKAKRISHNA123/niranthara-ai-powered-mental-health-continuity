@@ -19,13 +19,14 @@ Everything needed to run the full stack and deliver the demo: startup order, smo
 3. Set it in `mobile-app/src/utils/api.js` → `BASE_URL = 'http://<that-ip>:5000/api'`.
 4. Confirm from the phone's browser: `http://<that-ip>:5000/api/health` must return JSON. If it doesn't, allow Node through Windows Firewall (or `netsh advfirewall firewall add rule name="Niranthara" dir=in action=allow protocol=TCP localport=5000`).
 
-**Python env (once):** the committed `venv` is machine-pinned — build a fresh one:
+**Python env (once — already done on the dev machine, models cached):**
 ```powershell
 cd ai-service
-python -m venv .venv ; .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+uv venv .venv --python 3.11
+uv pip install -r requirements.txt --python .venv\Scripts\python.exe
+$env:PYTHONUTF8='1'; .\.venv\Scripts\python.exe download_models.py
 ```
-First run downloads HuggingFace models (mental-roberta, indic-bert, distilroberta — several GB). **Do this on hotel/home WiFi, never on demo day.**
+Downloads HuggingFace models (mental-roberta, indic-bert, distilroberta — several GB) and retrains the XGBoost risk model. **Do this on hotel/home WiFi, never on demo day.** (`python`/`py` are broken shims on this machine — always go through `uv` or `.venv\Scripts\python.exe`.)
 
 **Seed the demo patient** (after you have signed up one mobile user and one clinician):
 ```powershell
@@ -43,7 +44,7 @@ Four terminals, in this order:
 
 ```powershell
 # T1 — AI service (start first: model loading takes ~1-2 min)
-cd ai-service ; .\.venv\Scripts\Activate.ps1 ; uvicorn main:app --port 8000
+cd ai-service ; $env:PYTHONUTF8='1' ; .\.venv\Scripts\python.exe -m uvicorn main:app --port 8000
 # ready when: http://localhost:8000/api/health shows risk_model_ready: true
 
 # T2 — Backend
