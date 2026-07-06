@@ -68,4 +68,4 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 - **Demo scaffolding to remove after the hackathon**: hidden long-press triggers in `Home.js` (crisis biometrics, data-source toggle).
 
 ## Reference docs in repo
-`README.md` (deep feature/model walkthrough — stale in places, see gotchas), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`, **`docs/NIRANTHARA_V2_MASTER_PLAN.md`** (architecture review, roadmap, feature tiers), **`docs/DEMO_RUNBOOK.md`** (startup order, demo script, failure playbook).
+`README.md` (deep feature/model walkthrough — stale in places, see gotchas), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`, **`docs/NIRANTHARA_V2_MASTER_PLAN.md`** (architecture review, roadmap, feature tiers), **`docs/DEMO_RUNBOOK.md`** (startup order, demo script, failure playbook), **`docs/HACKATHON_STRATEGY.md`** (problem-statement decode, 5/7/10-min presentation plans, 50 judge Q&As, execution checklist).
