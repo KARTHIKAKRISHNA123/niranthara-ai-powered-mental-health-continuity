@@ -16,11 +16,12 @@
     "missed_checkins_count",
     "mood_sentiment_divergence",
     "screen_time_night_ratio",
-    "social_connectivity_score"
+    "social_connectivity_score",
+    "anomaly_behavioral_deviation"
   ],
   "n_estimators": 1000,
-  "best_iteration": 652,
+  "best_iteration": 543,
   "cpu_threads": 6,
   "tree_method": "hist",
-  "trained_at": "2026-05-04T17:48:58.832623"
+  "trained_at": "2026-07-06T11:02:33.552797"
 }
