@@ -107,7 +107,7 @@ Rule-based fallbacks exist only for network failure and are clearly marked tempo
 
 ### Capability 1 — AI Companion for Symptom Alleviation
 
-- **Minimax M2.7** (reasoning LLM) via NVIDIA's OpenAI-compatible cloud API, behind an engineered fallback chain: Minimax (25s budget) → Llama 3.1 8B fast lane (~1-2s) → guarded static responses. Every reply passes a deterministic medication-dosing output guardrail
+- **Latency-first LLM chain** via NVIDIA's OpenAI-compatible cloud API: Llama 3.1 8B primary for conversation (~1-2s measured) → Minimax M2.7 reasoning backstop → guarded static responses. Clinician summaries run the chain in reverse (Minimax first for quality). Every reply passes a deterministic medication-dosing output guardrail
 - Every response is **context-injected** with cycle vulnerability score, current mood score, detected emotion label, and XGBoost risk level before generation — the model knows the user's state before it responds
 - Delivers **CBT cognitive reframing**, guided **somatic breathing**, and **5-4-3-2-1 grounding** natively inside the chat interface
 - If `crisis_probability > 0.85` from mental-roberta NLP classifier, a **crisis card** is immediately rendered — not from keywords, from semantic understanding

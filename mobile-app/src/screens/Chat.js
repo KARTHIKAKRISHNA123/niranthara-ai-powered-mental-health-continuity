@@ -1,10 +1,10 @@
-// src/screens/Chat.js — Fixed: voice with expo-audio, no emojis, NVIDIA Minimax context
-// Chatbot: Minimax M2.7 via NVIDIA Cloud API.
-//   - Text goes: Mobile → Node backend → Python FastAPI → NVIDIA API (Minimax M2.7)
+// src/screens/Chat.js — Fixed: voice with expo-audio, no emojis, NVIDIA context
+// Chatbot: NVIDIA cloud model chain, latency-first for conversation.
+//   - Text goes: Mobile → Node backend → Python FastAPI → NVIDIA API
+//   - Chain: Llama 3.1 8B primary (~1-2s measured) → Minimax M2.7 quality
+//     backstop (reasoning model, 20-40s) → rotating warm static messages
 //   - Context injected: cycle phase, mood score, risk level, emotion detected
-//   - Response time: 20-40s typical (Minimax is a reasoning model); fast-lane
-//     Llama fallback kicks in server-side when Minimax stalls
-//   - Fallback: rotating warm static messages if everything is unreachable
+//   - The per-message tag shows which model actually replied
 // Voice: expo-audio (expo-av is deprecated and will be removed in SDK 54)
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -36,7 +36,7 @@ const LOCAL_FALLBACKS = [
 
 const MODEL_LABELS = [
   { match: 'minimax', label: 'Minimax M2.7' },
-  { match: 'llama',   label: 'Llama 3.1 · fast lane' },
+  { match: 'llama',   label: 'Llama 3.1' },
 ];
 const modelLabel = (modelUsed) =>
   MODEL_LABELS.find(m => modelUsed?.includes(m.match))?.label || null;
@@ -178,9 +178,9 @@ export default function ChatScreen({ navigation }) {
       .slice(-8)
       .map(m => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.text }));
 
-    // 60s timeout: Minimax is a reasoning model (20-40s typical). The global
-    // 8s axios timeout was aborting every reply, so the user only ever saw
-    // the identical offline message — the "repeating chatbot" bug.
+    // 60s timeout covers the full server-side chain worst case (Llama 12s +
+    // Minimax backstop 25s + overhead). The global 8s axios timeout was
+    // aborting every reply — the "repeating chatbot" bug.
     const result = await postData(
       '/chat/message',
       { message: text, uid: currentUser?.uid, history },
@@ -246,7 +246,7 @@ export default function ChatScreen({ navigation }) {
         <View style={styles.headerAvatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Niranthara</Text>
-          <Text style={styles.headerSub}>Powered by Minimax M2.7 · NVIDIA Cloud · Private</Text>
+          <Text style={styles.headerSub}>NVIDIA Cloud AI · End-to-end private</Text>
         </View>
         <TouchableOpacity
           style={styles.supportBtn}

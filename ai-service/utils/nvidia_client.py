@@ -21,12 +21,17 @@ else:
 
 MODEL_NAME = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m2.7")
 
-# Minimax is a reasoning model on a shared endpoint: measured latency ranges
-# 20s to 60s+ timeouts. The chain below keeps replies real when it stalls:
-# Minimax (bounded) -> fast instruct model (~1-2s) -> static text (last resort).
+# Two tiers, two jobs:
+# - CHAT is latency-first: Llama 3.1 8B answers in ~1-2s (measured), which is
+#   what a conversation needs. Minimax (reasoning, measured 20-60s+) is its
+#   backstop for quality if Llama hiccups.
+# - SUMMARY is quality-first: Minimax writes the clinician narrative; Llama
+#   is its fast backstop. Static text is the last resort on both paths.
 FAST_MODEL         = os.getenv("NVIDIA_FAST_MODEL", "meta/llama-3.1-8b-instruct")
+CHAT_MODEL         = os.getenv("NVIDIA_CHAT_MODEL", FAST_MODEL)
 PRIMARY_TIMEOUT_S  = float(os.getenv("NVIDIA_PRIMARY_TIMEOUT", "25"))
 FALLBACK_TIMEOUT_S = float(os.getenv("NVIDIA_FALLBACK_TIMEOUT", "10"))
+CHAT_TIMEOUT_S     = float(os.getenv("NVIDIA_CHAT_TIMEOUT", "12"))
 
 SYSTEM_PROMPT = """You are Niranthara, a compassionate AI mental health companion. You deeply understand English and Tanglish (code-mixed English used in India).
 
@@ -146,13 +151,14 @@ async def generate_response(
         {"role": "user", "content": prompt}
     ]
 
-    # Model chain: primary (reasoning, high quality, slow/variable) then fast
-    # instruct model (~1-2s). max_tokens 1024 on minimax because tokens are
-    # shared between hidden reasoning_content and the visible reply.
+    # Chat chain: fast model first (conversation needs ~1-2s replies), the
+    # reasoning model as quality backstop. Worst case 12s + 25s stays under
+    # the backend's 45s timeout. max_tokens 1024 on minimax because tokens
+    # are shared between hidden reasoning_content and the visible reply.
     last_error = None
     for model, timeout_s, max_toks in [
-        (MODEL_NAME, PRIMARY_TIMEOUT_S,  1024),
-        (FAST_MODEL, FALLBACK_TIMEOUT_S, 400),
+        (CHAT_MODEL, CHAT_TIMEOUT_S,    500),
+        (MODEL_NAME, PRIMARY_TIMEOUT_S, 1024),
     ]:
         try:
             completion = await client.chat.completions.create(
