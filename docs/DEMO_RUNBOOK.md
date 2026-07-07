@@ -111,6 +111,8 @@ Setup: **dashboard projected on the big screen, phone mirrored or held up beside
 | Need a guaranteed dashboard alert | — | Long-press **Sync Biometrics** → deterministic HRV-crash through the real pipeline → alert lands on the dashboard. |
 | AI service crashed mid-demo | Journal still logs, risk uses fallback values | Mood logging never blocks on ML (Promise.allSettled). Restart T1; models are cached, ~60 s. |
 | Dashboard empty | No patients | Wrong clinician login, or seed script not run — `node scripts/seedTestUser.js` takes 10 s. |
+| Port 8000/5000 already in use on start | uvicorn exits with bind error | Zombie processes from a previous run: `Get-Process python \| Stop-Process -Force` (and `node` if 5000). Verified failure mode — stopping a wrapper shell can leave the child alive. |
+| Want the full-screen crisis navigation from chat | Chat replies but no crisis screen | Auto-navigation requires classifier prob > 0.85 — moderate distress scores ~0.45-0.50 by design. On stage either use the permanent Support button in the chat header, or the journal money-shot (alert gate is 0.5 there). Do not lower the threshold. |
 | Judges ask "what's the model trained on?" | — | Honest answer, rehearsed: risk labels are synthetic today; the architecture self-labels (dropout, JITAI, anomaly generate their own training data in weeks of a pilot), and every model ships with a naive baseline it must beat. |
 
 **Golden rules:** hotspot over venue WiFi · simulated biometrics on stage · never demo anything you haven't run that morning · if a step dies, narrate the architecture while you recover — the fallbacks are part of the design.

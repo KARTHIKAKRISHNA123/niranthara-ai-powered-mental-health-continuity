@@ -95,6 +95,23 @@ def apply_output_guardrail(reply: str) -> tuple[str, bool]:
         return MEDICATION_DEFERRAL, True
     return reply, False
 
+
+# Input-side check: if the user is ASKING for dosing advice, defer before the
+# LLM ever runs — deterministic regardless of which language the model would
+# have replied in (the output regex is English-only). Labeled safety floor.
+_DOSING_QUESTION = re.compile(
+    r"\b(dose|dosage|\d+\s*mg|milligrams?|micrograms?|tablets?|pills?|capsules?)\b",
+    re.IGNORECASE,
+)
+_DOSING_INTENT = re.compile(
+    r"\b(take|taking|should i|how much|how many|increase|decrease|reduce|"
+    r"double|start|stop|skip|go up|go down)\b",
+    re.IGNORECASE,
+)
+
+def is_dosing_question(message: str) -> bool:
+    return bool(_DOSING_QUESTION.search(message) and _DOSING_INTENT.search(message))
+
 def _build_context(cycle_vuln: float, mood: float, risk: str,
                    emotion: str, sentiment: float, crisis_prob: float = 0.0) -> str:
     notes = []
@@ -131,6 +148,13 @@ async def generate_response(
     `history` is a list of {"role": "user"|"assistant", "content": str} for prior turns.
     Falls back to static culturally-appropriate response if API is unreachable or key is missing.
     """
+    if is_dosing_question(message):
+        return {
+            "reply": MEDICATION_DEFERRAL,
+            "modelUsed": "guardrail_input",
+            "guardrailBlocked": True
+        }
+
     if not client:
         return {
             "reply": _static_fallback(language),

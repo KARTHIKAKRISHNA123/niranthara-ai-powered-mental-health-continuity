@@ -43,7 +43,10 @@ router.post('/message', chatLimiter, verifyToken, async (req, res) => {
 
     const contextPayload = {
       message,
-      language:           language || user.language || 'en',
+      // Reply in the language the user TYPED (ai-service detects Tamil script /
+      // Tanglish per message). Profile language here made English questions get
+      // Tamil answers — and pushed replies outside the English guardrail regex.
+      language:           language || 'en',
       uid,
       cycle_vulnerability:  cycle.vulnerabilityScore   || 0,
       mood_score:           lastMood.moodScore         || 3,
@@ -179,13 +182,18 @@ router.get('/thread/:uid', generalLimiter, verifyToken, async (req, res) => {
     if (req.user.uid !== req.params.uid) {
       return res.status(403).json({ error: 'Forbidden — chat content is private' })
     }
+    // Fetch by uid only and sort in memory — same composite-index avoidance
+    // as the dashboard (the indexed query 500'd without console setup).
     const snap = await db.collection('chatLogs')
-      .where('uid', '==', req.params.uid)
-      .orderBy('timestamp', 'desc').limit(30).get()
+      .where('uid', '==', req.params.uid).get()
+
+    const docs = snap.docs
+      .map(d => d.data())
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))  // chronological
+      .slice(-30)
 
     const turns = []
-    snap.docs.reverse().forEach(d => {            // chronological order
-      const data     = d.data()
+    docs.forEach(data => {
       const userText = data.userMessage ? decrypt(data.userMessage) : ''
       if (userText)     turns.push({ role: 'user',      content: userText,     time: data.timestamp })
       if (data.aiReply) turns.push({ role: 'assistant', content: data.aiReply, time: data.timestamp })
