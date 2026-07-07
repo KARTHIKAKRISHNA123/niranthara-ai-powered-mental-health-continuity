@@ -126,7 +126,7 @@ All services running per §2, phone logged in as the patient, dashboard as the c
 
 **D4 · Biometric sync — simulated.** Long-press the "Health Connect" title → confirm SIMULATED. Tap Sync Biometrics. Expect: card fills (HR/HRV/steps/sleep), "SIMULATED" tag. This is the recommended stage mode.
 
-**D5 · Biometric sync — real Fitbit Charge 6.** Wear the watch; open the Fitbit app and let it sync; confirm data in the Health Connect app (Browse data). In Niranthara (dev-client build, not Expo Go): long-press title → REAL mode → Sync. Expect: provider tag "Fitbit", real HR/steps/sleep, HRV shows "—" (Fitbit never writes HRV to Health Connect — absent signals are excluded from scoring, not zeroed). Recovery: falls back to SIMULATED with a reason; check Health Connect app permissions for Niranthara.
+**D5 · Biometric sync — real Fitbit Charge 6.** Wear the watch; open the **Google Health app (formerly Fitbit)** and let it sync; confirm data in the Health Connect app (Browse data). In Niranthara (dev-client build, not Expo Go): long-press title → REAL mode → Sync. Expect: provider tag "Fitbit", real HR/steps/sleep, HRV shows "—" (Fitbit never writes HRV to Health Connect — absent signals are excluded from scoring, not zeroed). Recovery: falls back to SIMULATED with a reason; check Health Connect app permissions for Niranthara.
 
 **D6 · Deterministic crisis biometrics (stage trigger).** Long-press "Sync Biometrics" (600 ms). Expect: HRV-crash payload through the real pipeline, stress ~0.58, "Alert sent to clinician" on the card, alert on the projected dashboard. Verified: fires every run.
 

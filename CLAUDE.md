@@ -12,10 +12,10 @@ Niranthara is an AI mental-health *continuity* platform: passive monitoring of d
 
 | Dir | Stack | Port | Run |
 |---|---|---|---|
-| `ai-service/` | Python 3.11 · FastAPI · PyTorch · XGBoost · HuggingFace | 8000 | `uvicorn main:app --reload --port 8000` |
-| `backend/` | Node 20 · Express · Firebase Admin · node-cron | 5000 | `node index.js` (no `start`/`test` script — `npm test` is a stub) |
-| `dashboard/` | React 18 · Vite 5 · Firebase Web SDK | 5173 (vite) | `npm run dev` · `npm run build` · `npm run lint` |
-| `mobile-app/` | React Native · Expo SDK 50 | — | `npm start` / `expo start` (`--android` / `--ios`) |
+| `ai-service/` | Python 3.11 · FastAPI · PyTorch · XGBoost · HuggingFace | 8000 | `.venv\Scripts\python.exe -m uvicorn main:app --port 8000` |
+| `backend/` | Node 20 · Express 5 · Firebase Admin · node-cron | 5000 | `node index.js` (no `start`/`test` script — `npm test` is a stub) |
+| `dashboard/` | React 19 · Vite 8 · Firebase Web SDK | 5173 (vite) | `npm run dev` · `npm run build` · `npm run lint` |
+| `mobile-app/` | React Native 0.81 · Expo SDK 54 | — | `npx expo start --dev-client` (dev build required for Health Connect) |
 | `smartwatch/` | Node · Express | — | `npm run dev` (nodemon) / `npm start` |
 
 There is **no test suite** wired up anywhere (no pytest config, backend `test` is `exit 1`). Verify changes by running the relevant service, not by running tests.
@@ -62,9 +62,9 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 - **OpenAI SDK retries multiply timeouts**: the NVIDIA client is created with `max_retries=0` because the model chain is the retry strategy — with default retries a 25s budget produced 80s wall time (measured). Worst-case chain time must stay under the backend's 45s axios timeout.
 - **SHAP output shape differs by version**: `predict.py`'s `_select_class_shap()` normalizes old (list per class) vs new ((samples, features, classes) array) SHAP output. Without it `/api/predict/risk` 500s on shap>=0.50.
 - **LLM latency is the #1 trap.** Minimax M2.7 is a reasoning model: measured 20-40s replies with 60s+ stalls. The mobile global axios timeout is **8s** — chat overrides it per-request to 60s (`postData(..., { timeout: 60000 })`). If chat "always returns the same message", check `modelUsed` in the response: `fallback_*` means the chain bottomed out; an 8s client timeout means the user only ever sees the offline line.
-- **README prose is stale on the LLM.** Badges/sections say "Gemma 4B via Ollama (local)"; the actual chat backend is the NVIDIA model chain (`nvidia_client.py` is the source of truth). Trust the code, not the README, on the model.
+- **README was fully rewritten (July 2026)** and is accurate to current code (LLM chain, 9 routers, partial-data biometric rules, security model). If code and README diverge again, the code wins — and update the README in the same session.
 - **`mobile-app/src/utils/api.js` `BASE_URL` is a hardcoded LAN IP.** Physical-device testing requires editing it to the dev machine's WiFi IPv4 (the file documents the candidates). Android emulator uses `10.0.2.2`.
-- **`ai-service/main.py` registers 9 routers** including `anomaly` (LSTM autoencoder) and a 15-feature `predict`; some README tables list 8/14 — the running app is the authority.
+- **`ai-service/main.py` registers 9 routers** including `anomaly` (LSTM autoencoder) and a 15-feature `predict` — the running app is the authority.
 - Firestore composite indexes are created via console URLs printed in backend logs on first query; there is no `firestore.indexes.json` to deploy. The dashboard, `/api/assessments` GET, and `/api/chat/thread` fetch-by-uid and sort/filter in memory to dodge missing indexes (deliberate demo-scale tradeoff; the indexed thread query 500'd in rehearsal).
 - **Stopping a background service wrapper can orphan its child process** on Windows — port 8000/5000 "already in use" on restart means zombie `python`/`node` processes; kill them explicitly.
 - **`users.topFactors` is written on every mood log** (moodRoutes step 8) — the dashboard SHAP panel reads it; older patients fall back to the latest mood log's factors.
@@ -74,4 +74,4 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 - **Demo scaffolding to remove after the hackathon**: hidden long-press triggers in `Home.js` (crisis biometrics, data-source toggle).
 
 ## Reference docs in repo
-`README.md` (deep feature/model walkthrough — stale in places, see gotchas), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md`, `nirantara_feature_map_v2.html`, **`docs/NIRANTHARA_V2_MASTER_PLAN.md`** (architecture review, roadmap, feature tiers), **`docs/DEMO_RUNBOOK.md`** (startup order, demo script, failure playbook), **`docs/HACKATHON_STRATEGY.md`** (problem-statement decode, 5/7/10-min presentation plans, 50 judge Q&As, execution checklist).
+`README.md` (rewritten July 2026 — accurate: features, architecture, diagrams, APIs, security), `NIRANTARA_TECHNICAL_SPEC_V2.md`, `Build_Guide.md` (§40 style guide is the design source of truth), `nirantara_feature_map_v2.html`, **`docs/NIRANTHARA_V2_MASTER_PLAN.md`** (architecture review, roadmap, feature tiers), **`docs/DEMO_RUNBOOK.md`** (startup order, demo script, failure playbook), **`docs/HACKATHON_STRATEGY.md`** (problem-statement decode, 5/7/10-min presentation plans, 50 judge Q&As, execution checklist).
