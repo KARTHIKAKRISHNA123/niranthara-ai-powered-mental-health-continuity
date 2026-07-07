@@ -62,6 +62,11 @@ async def chat(request: ChatRequest):
     # Detect language for response style
     detected_lang = detect_language(request.message)
     lang = detected_lang if detected_lang != "en" else (request.language or "en")
+    # No Tamil font is shipped in the apps — Tamil-script input still gets an
+    # understanding reply, but written in Tanglish (Latin script renders
+    # correctly on every device). English-only product decision, July 2026.
+    if lang == "ta":
+        lang = "tanglish"
 
     # Generate response with full context + prior turns for multi-turn memory
     history = [t.model_dump() for t in request.history] if request.history else None
