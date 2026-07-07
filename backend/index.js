@@ -3,7 +3,30 @@
   const express = require('express')
   const cors    = require('cors')
   const helmet  = require('helmet')
+  const fs      = require('fs')
   require('dotenv').config()
+
+  // ── Fail fast on missing config — a half-configured server that boots and
+  // then 500s on every encrypted write is worse than one that refuses to start.
+  const missing = []
+  if (!process.env.ENCRYPTION_KEY) missing.push('ENCRYPTION_KEY (backend/.env)')
+  if (!fs.existsSync(require('path').join(__dirname, 'serviceAccountKey.json'))) missing.push('serviceAccountKey.json')
+  if (missing.length) {
+    console.error(`FATAL: missing required config: ${missing.join(', ')}`)
+    process.exit(1)
+  }
+  if (!process.env.AI_SERVICE_URL) console.warn('AI_SERVICE_URL not set — defaulting to http://localhost:8000')
+
+  // ── Process-level safety nets: log-and-continue on unhandled rejections
+  // (a background FCM/cron failure must never kill the crisis pipeline);
+  // log-and-exit on truly unknown exceptions.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', reason?.message || reason)
+  })
+  process.on('uncaughtException', (err) => {
+    console.error('[uncaughtException]', err.stack || err)
+    process.exit(1)
+  })
 
   const app  = express()
   const PORT = process.env.PORT || 5000
@@ -11,6 +34,16 @@
   app.use(helmet())
   app.use(cors())
   app.use(express.json({ limit: '10mb' }))
+
+  // Request log: method, path, status, duration. No bodies, no PII — journals
+  // and messages must never reach logs.
+  app.use((req, res, next) => {
+    const t0 = Date.now()
+    res.on('finish', () => {
+      console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - t0}ms`)
+    })
+    next()
+  })
 
   // Routes
   const authRoutes      = require('./routes/authRoutes')
@@ -54,10 +87,10 @@
   app.use((req, res) => res.status(404).json({ error: 'Route not found' }))
   app.use((err, req, res, next) => { console.error(err.stack); res.status(500).json({ error: 'Internal server error' }) })
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Niranthara backend running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV}`)
-    
+
     // Start JITAI cron scheduler
     require('./services/jitaiScheduler')
     console.log('JITAI scheduler started')
@@ -66,3 +99,13 @@
     const { startEscalationCron } = require('./services/escalationCron')
     startEscalationCron()
   })
+
+  // Graceful shutdown: release the port on Ctrl+C/SIGTERM so restarts never
+  // hit "address already in use" (zombie listeners were a repeated failure).
+  const shutdown = (signal) => {
+    console.log(`${signal} received — closing server`)
+    server.close(() => process.exit(0))
+    setTimeout(() => process.exit(1), 5000).unref()
+  }
+  process.on('SIGINT',  () => shutdown('SIGINT'))
+  process.on('SIGTERM', () => shutdown('SIGTERM'))

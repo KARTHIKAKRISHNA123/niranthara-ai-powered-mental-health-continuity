@@ -33,7 +33,7 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
                          Firebase Firestore (shared state) ◀── dashboard (onSnapshot live reads)
 ```
 
-- **`backend` is an orchestration layer.** It owns auth, encryption, Firestore writes, and cron schedulers; it proxies all ML/NLP work to `ai-service`. The AI service URL is `process.env.AI_SERVICE_URL` (default `http://localhost:8000`).
+- **`backend` is an orchestration layer.** It owns auth, encryption, Firestore writes, and cron schedulers; it proxies all ML/NLP work to `ai-service` **exclusively through `backend/utils/aiClient.js`** (one axios instance: base URL from `AI_SERVICE_URL`, 15s default timeout, LLM paths override to 45s). Never construct AI-service URLs in route files. `index.js` fails fast on missing `ENCRYPTION_KEY`/`serviceAccountKey.json`, logs every request (method/path/status/ms — never bodies), survives unhandled rejections, and releases the port on SIGINT/SIGTERM.
 - **Firestore is the integration bus.** Backend writes (`users`, `moodLogs`, `cycleLogs`, `chatLogs`, `clinicianAlerts`, `jitaiLogs`); the dashboard reacts via `onSnapshot` (see `dashboard/src/hooks/usePatients.js`). There are no REST calls from dashboard → backend for the live patient list.
 - **Cron is started inside `backend/index.js` `app.listen`**: `jitaiScheduler` (hourly receptivity sweep) and `escalationCron` (`startEscalationCron()`, runs every 15 min for crisis + loss-of-follow-up). Editing scheduler cadence means editing those service files, not config.
 
@@ -58,6 +58,7 @@ mobile-app ──(Firebase JWT)──▶ backend :5000 ──(HTTP)──▶ ai-
 ## Gotchas verified in this codebase
 
 - **`main.py` must load `.env` before router imports** (`load_dotenv()` at the top) — `nvidia_client.py` reads `NVIDIA_API_KEY` at import time. Before this fix the service silently ran chat on static fallbacks unless the key happened to be in the shell env.
+- **`main.py` warms the crisis classifier at startup** (background executor) — without it the first chat message pays a ~40s model-load penalty on CPU.
 - **OpenAI SDK retries multiply timeouts**: the NVIDIA client is created with `max_retries=0` because the model chain is the retry strategy — with default retries a 25s budget produced 80s wall time (measured). Worst-case chain time must stay under the backend's 45s axios timeout.
 - **SHAP output shape differs by version**: `predict.py`'s `_select_class_shap()` normalizes old (list per class) vs new ((samples, features, classes) array) SHAP output. Without it `/api/predict/risk` 500s on shap>=0.50.
 - **LLM latency is the #1 trap.** Minimax M2.7 is a reasoning model: measured 20-40s replies with 60s+ stalls. The mobile global axios timeout is **8s** — chat overrides it per-request to 60s (`postData(..., { timeout: 60000 })`). If chat "always returns the same message", check `modelUsed` in the response: `fallback_*` means the chain bottomed out; an 8s client timeout means the user only ever sees the offline line.

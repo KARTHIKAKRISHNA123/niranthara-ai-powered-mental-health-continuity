@@ -47,6 +47,22 @@ app.include_router(jitai.router,     prefix="/api/jitai",     tags=["JITAI"])
 app.include_router(anomaly.router,   prefix="/api/anomaly",   tags=["Anomaly"])
 
 
+@app.on_event("startup")
+async def warm_models():
+    """Load the lazy crisis classifier in the background at boot — the first
+    chat message otherwise pays a ~40s model-load penalty (measured on CPU)."""
+    import asyncio
+
+    def _warm():
+        try:
+            chat.get_crisis_pipe()("warm-up")
+            print("[startup] crisis classifier warmed")
+        except Exception as e:
+            print(f"[startup] warm-up failed (non-fatal): {e}")
+
+    asyncio.get_event_loop().run_in_executor(None, _warm)
+
+
 @app.get("/")
 def root():
     return {
