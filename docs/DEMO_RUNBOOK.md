@@ -101,6 +101,74 @@ Setup: **dashboard projected on the big screen, phone mirrored or held up beside
 
 ---
 
+## 3.5 Per-demo cookbook — how to run EVERY demo
+
+All services running per §2, phone logged in as the patient, dashboard as the clinician. Each entry: steps → expected result → recovery. Every path below was machine-verified (30 automated checks across two test suites).
+
+### Mobile — patient app
+
+**D1 · Home dashboard (risk ring, cycle ring, baseline stats).** Open the app. Expect: animated risk ring with XGBoost percentage, cycle ring, steps/sleep/mood tiles vs personal baseline. Stats show 0/— until passive data exists — sync biometrics first for a fuller screen.
+
+**D2 · SHAP narrative card.** On Home, find the colored card ("Your system is under stress" etc.), tap the chevron. Expect: plain-language narrative + top-3 AI signal breakdown. Requires one mood log ever (writes `users.topFactors`).
+
+**D3 · Emotional suppression arc.** Appears on Home only when mood-language divergence > 0.15 — log a mood of 4/5 with a clearly negative journal to trigger it. Expect: STATED vs EXPRESSED bars with a gap indicator.
+
+**D4 · Biometric sync — simulated.** Long-press the "Health Connect" title → confirm SIMULATED. Tap Sync Biometrics. Expect: card fills (HR/HRV/steps/sleep), "SIMULATED" tag. This is the recommended stage mode.
+
+**D5 · Biometric sync — real Fitbit Charge 6.** Wear the watch; open the Fitbit app and let it sync; confirm data in the Health Connect app (Browse data). In Niranthara (dev-client build, not Expo Go): long-press title → REAL mode → Sync. Expect: provider tag "Fitbit", real HR/steps/sleep, HRV shows "—" (Fitbit never writes HRV to Health Connect — absent signals are excluded from scoring, not zeroed). Recovery: falls back to SIMULATED with a reason; check Health Connect app permissions for Niranthara.
+
+**D6 · Deterministic crisis biometrics (stage trigger).** Long-press "Sync Biometrics" (600 ms). Expect: HRV-crash payload through the real pipeline, stress ~0.58, "Alert sent to clinician" on the card, alert on the projected dashboard. Verified: fires every run.
+
+**D7 · THE MONEY SHOT — journal → live dashboard alert.** Journal tab → mood 2/5 → journal: "I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore." → save. Expect: risk ~0.8/high with top factors returned in ~1-2 s; the projected dashboard alert appears within ~1 s (onSnapshot). Verified: 1.2 s end-to-end.
+
+**D8 · PHQ-9.** Home → "Wellbeing check" card. One question per screen, answer all 9. Expect: score/27, severity band, result copy; score appears on the dashboard assessments chart on next load.
+
+**D9 · GAD-7.** Long-press the same Wellbeing check card (600 ms). Same flow, 7 questions, /21.
+
+**D10 · PHQ-9 item-9 protocol.** Take PHQ-9 and answer the last question (self-harm) with anything above "Not at all". Expect: result screen shows a "Support is available right now" button → opens Crisis Support; a clinician alert is created regardless of total score. Verified live.
+
+**D11 · Chat with memory.** Care tab → send 2-3 related messages. Expect: replies in ~2-8 s tagged "Llama 3.1" (or "Minimax M2.7"); later replies reference earlier ones. Kill and reopen the app → thread restores (server-side decrypt). First message after service boot is slow (classifier lazy-load) — that's what the §2 warm-up is for.
+
+**D12 · Medication guardrail (judge-proofing).** In chat, type: "what dose of sertraline should I take? should I go up to 100mg?" Expect: instant deterministic deferral ("I can't advise on medication…"), ~0.2 s — it never reaches the LLM. Verified: input-side tier fires in any language.
+
+**D13 · Crisis support screen.** Two entries: the permanent "Support" button in the chat header (always works — use this on stage), or automatic full-screen navigation when the crisis classifier scores > 0.85 (moderate distress scores ~0.45-0.50 and will NOT auto-trigger; don't lower the threshold). Expect: tap-to-call Tele-MANAS 14416 / iCall / NIMHANS, 5-4-3-2-1 grounding, breathing handoff. Works offline.
+
+**D14 · JITAI breathing card.** Appears on Home when risk > 0.5 (true after D7). Tap → guided 4·4·6 somatic breathing.
+
+**D15 · CBT reframe card.** Appears on Home when 30-day avg mood < 2.5. Tap → guided thought-reframing worksheet. If avg mood is too high to trigger, open it via the crisis screen's breathing → back → or just describe it; don't force mood logs to game the average.
+
+**D16 · Cycle screen.** Cycle tab. Expect: phase ring, vulnerability forecast. Full LSTM personalization needs period history — log a period via the screen if the ring shows day 0.
+
+**D17 · Insights.** Home → "Insights" pill. Expect: 30-day trends and weekly narrative.
+
+**D18 · Offline mode.** Airplane mode → log a mood → "saved offline" message; disable airplane mode → pull-to-refresh Home → offline queue syncs (`processOfflineSync`). Chat shows the saved-message line while offline.
+
+### Dashboard — clinician
+
+**D19 · Triage caseload.** Log in → Patients. Expect: staggered card entrance, risk-count tiles, patients sorted by XGBoost score, "Live · Firestore onSnapshot" pulsing indicator, skeleton shimmer during load.
+
+**D20 · Live alert + browser notification.** Keep the dashboard in a background tab, run D6 or D7 on the phone. Expect: OS notification (crisis alerts stay until dismissed) + nav badge count updates live. Requires clicking Allow on the permission prompt at login (§2 smoke test).
+
+**D21 · Alerts queue + resolve.** Alerts page. Expect: unresolved alerts newest-first (crisis alerts visually dominant); Resolve updates instantly. The queue was tidied to one alert per patient+type — escalation-cron alerts (loss-of-follow-up) now appear here too (bug fixed: they were invisible before).
+
+**D22 · Patient detail.** Click a patient. Expect: 30-day risk trajectory chart (risk + cycle vulnerability + crisis prob), NLP signal tiles (sentiment, emotion, crisis prob, suppression), skeleton loading.
+
+**D23 · SHAP panel.** On patient detail: "Top Risk Factors" with ranked drivers. Live for any patient with a mood log; older patients fall back to their latest log's factors.
+
+**D24 · Assessments card.** Patient detail: PHQ-9/GAD-7 trajectory chart + latest-score tiles; item-9 flags show "Item 9 flagged — review".
+
+**D25 · AI clinical summary.** Patient detail → Generate Summary. Expect: 4-5 clinical sentences from 30-day structured signals in ~5-30 s (chain: Minimax quality-first, Llama backstop — both tags are real). Regenerate button reruns it.
+
+**D26 · Flag patient + PDF export.** Sidebar: Flag Patient (modal, requires reason, toast confirm; alert appears in queue) and Export PDF (patient report with summary + factors).
+
+### Background intelligence (narrate, don't wait)
+
+**D27 · Escalation cron.** Every 15 min: crisis-prob spikes + high-risk patients inactive 3+ days → alerts (6h per-patient dedup). Point at a "loss_of_contact" alert in the queue: "nobody silently drops out of care."
+
+**D28 · JITAI scheduler.** Hourly receptivity sweep per patient (per-user XGBoost); nudges only when the model says the patient will engage. Show `jitaiLogs` on patient detail or narrate over the Home cards (D14/D15 are its visible output).
+
+---
+
 ## 4. Failure playbook
 
 | Failure | Symptom | Recovery |
