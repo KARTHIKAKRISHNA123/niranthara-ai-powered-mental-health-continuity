@@ -365,7 +365,10 @@ export default function PatientDetail() {
     <div className="dashboard-layout">
       {/* ── Sidebar ── */}
       <aside className="sidebar">
-        <div className="logo">Niranth<span>ara</span></div>
+        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="/logo.png" alt="Niranthara logo" style={{ width: 40, height: 'auto' }} />
+          <div>Niranth<span>ara</span></div>
+        </div>
         <button
           onClick={() => nav('/dashboard')}
           className="nav-item"

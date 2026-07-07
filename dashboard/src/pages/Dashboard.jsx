@@ -5,50 +5,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth }     from '../context/AuthContext'
 import { usePatients, useAlerts } from '../hooks/usePatients'
-import { RiskBadge, CrisisBanner, PatientCard } from '../components/components'
-
-// ─── Nav icon atoms ───────────────────────────────────────────────────────────
-function IconClipboard() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true">
-      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-      <rect x="9" y="3" width="6" height="4" rx="2" />
-      <line x1="9" y1="12" x2="15" y2="12" />
-      <line x1="9" y1="16" x2="12" y2="16" />
-    </svg>
-  )
-}
-
-function IconBell() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  )
-}
-
-function IconLogOut() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  )
-}
-
-// ─── Nav items config ─────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { label: 'Patients', path: '/dashboard', Icon: IconClipboard },
-  { label: 'Alerts',   path: '/alerts',    Icon: IconBell },
-]
+import { RiskBadge, CrisisBanner, PatientCard, Sidebar } from '../components/components'
 
 export default function Dashboard() {
   const { clinician, logout } = useAuth()
@@ -65,48 +22,12 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-layout">
-      {/* ── Sidebar ── */}
-      <aside className="sidebar">
-        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--sp-xl)' }}>
-          <img src="/logo.png" alt="Niranthara Logo" style={{ width: 40, height: 'auto' }} />
-          <div>Niranth<span>ara</span></div>
-        </div>
-
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-          {NAV_ITEMS.map(({ label, path, Icon }) => {
-            const active = window.location.pathname === path
-            const badge  = label === 'Alerts' ? unresolvedCount : 0
-            return (
-              <button
-                key={path}
-                onClick={() => nav(path)}
-                className={`nav-item${active ? ' active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-              >
-                <Icon />
-                <span style={{ flex: 1 }}>{label}</span>
-                {badge > 0 && (
-                  <span className="nav-badge">{badge}</span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        <div style={{ borderTop: '1px solid var(--rose-light)', paddingTop: 'var(--sp-lg)' }}>
-          <div style={{ fontSize: 13, color: 'var(--warm-gray)', marginBottom: 8, paddingLeft: 4 }}>
-            {clinician?.name || clinician?.email}
-          </div>
-          <button
-            className="nav-item"
-            onClick={logout}
-            style={{ width: '100%', fontSize: 12, gap: 8 }}
-          >
-            <IconLogOut />
-            Sign Out
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        active="patients"
+        alertCount={unresolvedCount}
+        clinicianName={clinician?.name || clinician?.email}
+        onLogout={logout}
+      />
 
       {/* ── Main ── */}
       <main className="main-content">

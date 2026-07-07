@@ -137,6 +137,25 @@ a:hover { text-decoration: underline; }
   padding:    var(--sp-xl) var(--sp-xxl);
   overflow-y: auto;
   max-width:  1200px;
+  /* Ambient depth — two barely-there color washes so pages never read as
+     flat blank cream. Kept under 6% opacity: atmosphere, not decoration. */
+  background:
+    radial-gradient(1100px 420px at 88% -8%,  rgba(155,142,196,0.07), transparent 70%),
+    radial-gradient(900px  480px at -6% 108%, rgba(201,123,132,0.06), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* Page-title flourish: short rose underline anchors the heading */
+.page-title { position: relative; padding-bottom: 10px; }
+.page-title::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  bottom: 0;
+  width: 44px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--rose), var(--lavender));
 }
 
 /* ── Logo ───────────────────────────────────────────────────────────────── */
