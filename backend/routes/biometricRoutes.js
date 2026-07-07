@@ -8,14 +8,13 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken   = require('../middleware/verifyToken')
 const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 const { sendClinicianCrisisAlert } = require('../services/notificationService')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/passive/biometric-sync
@@ -121,7 +120,7 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       const avg   = (arr, key) => arr.length
         ? arr.reduce((s, l) => s + (Number(l[key]) || 0), 0) / arr.length : 0
 
-      const riskRes = await axios.post(`${AI_URL}/api/predict/risk`, {
+      const riskRes = await ai.post(`/api/predict/risk`, {
         uid,
         moodScore:               avg(moods, 'moodScore') || 3,
         sleepHours:              sleepHours || avg(moods, 'sleepHours') || 7,
@@ -161,9 +160,9 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
           riskScore:       riskData.riskScore,
           crisisProb:      0,
           triggerFactors:  [
-            `Physiological stress score: ${(physiologicalStressScore * 100).toFixed(0)}%`,
-            `HRV deviation: ${(hrvDeviation * 100).toFixed(0)}% below baseline`,
-            `Sleep: ${sleepHours}h (baseline ${avgSleepBase}h)`,
+            `Physiological stress score: ${(physiologicalStressScore * 100).toFixed(0)}% (${signals.length} signals)`,
+            ...(hrvDeviation != null ? [`HRV deviation: ${(hrvDeviation * 100).toFixed(0)}% below baseline`] : []),
+            ...(sleepHours != null ? [`Sleep: ${sleepHours}h (baseline ${avgSleepBase}h)`] : []),
           ],
           source:          'health_connect_biometrics',
           resolved:        false,

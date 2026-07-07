@@ -2,12 +2,11 @@
 // node-cron: hourly JITAI evaluation + midnight full depression detection
 
 const cron = require('node-cron')
-const axios = require('axios')
 const { db } = require('../config/firebase')
 const notificationService = require('./notificationService')
 const baselineService     = require('./baselineService')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 const daysSince = (isoString) => {
   if (!isoString) return 0
@@ -44,7 +43,7 @@ cron.schedule('0 * * * *', async () => {
         const jitai   = jitaiSnap.docs.map(d => d.data())
         const lastMoodAt = mood.createdAt || mood.date || mood.timestamp || user.createdAt
 
-        const dropoutRes = await axios.post(`${AI_URL}/api/dropout/predict`, {
+        const dropoutRes = await ai.post(`/api/dropout/predict`, {
           uid,
           daysSinceLastCheckin: daysSince(lastMoodAt),
           notificationOpenRateTrend: user.notificationOpenRateTrend ?? 0.5,
@@ -70,7 +69,7 @@ cron.schedule('0 * * * *', async () => {
           day_of_week:         now.getDay()
         }
 
-        const jitaiRes = await axios.post(`${AI_URL}/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
+        const jitaiRes = await ai.post(`/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
         const result   = jitaiRes.data
 
         if (result.shouldIntervene && user.fcmToken) {
@@ -126,7 +125,7 @@ cron.schedule('0 0 * * *', async () => {
 
         const avg = (arr, key) => arr.length ? arr.reduce((s, l) => s + (Number(l[key]) || 0), 0) / arr.length : 0
 
-        const riskRes = await axios.post(`${AI_URL}/api/predict/risk`, {
+        const riskRes = await ai.post(`/api/predict/risk`, {
           uid,
           moodScore:              avg(moods, 'moodScore'),
           sleepHours:             avg(moods, 'sleepHours'),
@@ -139,7 +138,7 @@ cron.schedule('0 0 * * *', async () => {
           passiveLogs:            passive
         }, { timeout: 12000 })
 
-        const dropoutRes = await axios.post(`${AI_URL}/api/dropout/predict`, {
+        const dropoutRes = await ai.post(`/api/dropout/predict`, {
           uid,
           daysSinceLastCheckin: daysSince(moods[0]?.createdAt || moods[0]?.date || moods[0]?.timestamp || user.createdAt),
           notificationOpenRateTrend: user.notificationOpenRateTrend ?? 0.5,

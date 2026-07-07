@@ -3,13 +3,12 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db, fcm } = require('../config/firebase')
 const verifyToken  = require('../middleware/verifyToken')
 const { generalLimiter } = require('../middleware/rateLimiter')
 const notificationService = require('../services/notificationService')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 // POST /api/jitai/evaluate/:uid — Personalized JITAI ML evaluation
 router.post('/evaluate/:uid', verifyToken, async (req, res) => {
@@ -30,7 +29,7 @@ router.post('/evaluate/:uid', verifyToken, async (req, res) => {
     }
 
     // Delegate fully to AI service personalized model
-    const jitaiRes = await axios.post(`${AI_URL}/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
+    const jitaiRes = await ai.post(`/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
     const result = jitaiRes.data
 
     if (result.shouldIntervene) {
@@ -111,7 +110,7 @@ router.post('/log-response', verifyToken, async (req, res) => {
         .orderBy('timestamp', 'desc').limit(50).get()
 
       const history = historySnap.docs.map(d => d.data())
-      axios.post(`${AI_URL}/api/jitai/train`, { uid, history }).catch(e => {
+      ai.post(`/api/jitai/train`, { uid, history }).catch(e => {
         console.warn('JITAI retrain non-blocking error:', e.message)
       })
     }

@@ -3,13 +3,12 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
 const { requireClinician, requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 // GET /api/clinician/patients — All patients sorted by XGBoost risk_score
 router.get('/patients', generalLimiter, verifyToken, requireClinician, async (req, res) => {
@@ -107,7 +106,7 @@ router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
       cycleVulnerability: logs[0]?.cycleVulnerability ?? null
     }
 
-    const summaryRes = await axios.post(`${AI_URL}/api/chat/summary`, stats, { timeout: 45000 })
+    const summaryRes = await ai.post(`/api/chat/summary`, stats, { timeout: 45000 })
     res.json({ summary: summaryRes.data.summary, modelUsed: summaryRes.data.modelUsed, generatedAt })
   } catch (error) {
     console.warn('[clinicianRoutes] summary failed:', error.message)

@@ -3,7 +3,6 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
 const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
@@ -11,7 +10,7 @@ const { chatLimiter, generalLimiter } = require('../middleware/rateLimiter')
 const { encrypt, decrypt } = require('../utils/encryption')
 const { validateChatMessage } = require('../utils/validators')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 // POST /api/chat/message — Full NLP → Gemma context-aware response
 router.post('/message', chatLimiter, verifyToken, async (req, res) => {
@@ -56,7 +55,7 @@ router.post('/message', chatLimiter, verifyToken, async (req, res) => {
       history:              safeHistory
     }
 
-    const aiRes = await axios.post(`${AI_URL}/api/chat`, contextPayload, { timeout: 45000 })
+    const aiRes = await ai.post(`/api/chat`, contextPayload, { timeout: 45000 })
     const aiData = aiRes.data
 
     // Encrypt user message before storing
@@ -119,7 +118,7 @@ router.post('/voice', chatLimiter, verifyToken, async (req, res) => {
     if (!audioBase64) return res.status(400).json({ error: 'audioBase64 is required' })
 
     // Sarvam STT transcription via AI service
-    const sttRes = await axios.post(`${AI_URL}/api/chat/transcribe`, {
+    const sttRes = await ai.post(`/api/chat/transcribe`, {
       audioBase64, language: language || 'ta'
     }, { timeout: 20000 })
 
@@ -140,7 +139,7 @@ router.post('/voice', chatLimiter, verifyToken, async (req, res) => {
       uid
     }
 
-    const aiRes = await axios.post(`${AI_URL}/api/chat`, contextPayload, { timeout: 45000 })
+    const aiRes = await ai.post(`/api/chat`, contextPayload, { timeout: 45000 })
     const encryptedMsg = encrypt(transcribedText)
 
     await db.collection('chatLogs').add({

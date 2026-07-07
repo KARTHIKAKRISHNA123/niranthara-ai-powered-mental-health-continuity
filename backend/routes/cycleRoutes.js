@@ -3,14 +3,13 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
 const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 const { validatePeriodLog } = require('../utils/validators')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 // POST /api/cycle/log-period
 // Log period start → triggers LSTM retraining for this user
@@ -28,12 +27,12 @@ router.post('/log-period', verifyToken, async (req, res) => {
     const updatedHistory = [...prevHistory, new Date(periodStart).toISOString()].slice(-24) // keep last 24 cycles
 
     // Trigger AI service LSTM retraining in background
-    axios.post(`${AI_URL}/api/cycle/train/${uid}`, { periodHistory: updatedHistory }).catch(err => {
+    ai.post(`/api/cycle/train/${uid}`, { periodHistory: updatedHistory }).catch(err => {
       console.warn('LSTM retrain failed (non-blocking):', err.message)
     })
 
     // Get updated ML prediction from AI service
-    const predictRes = await axios.get(`${AI_URL}/api/cycle/predict/${uid}`, {
+    const predictRes = await ai.get(`/api/cycle/predict/${uid}`, {
       params: { last_period: periodStart, history: updatedHistory }
     }).catch(() => ({ data: { vulnerabilityScore: 0, currentPhase: 'menstrual', predictedNextPeriod: null, modelType: 'population_fallback', currentDay: 1 } }))
 
@@ -110,7 +109,7 @@ router.get('/today/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClin
 
     const data = doc.data()
     // Refresh from AI service for live prediction
-    const predictRes = await axios.get(`${AI_URL}/api/cycle/predict/${req.params.uid}`).catch(() => null)
+    const predictRes = await ai.get(`/api/cycle/predict/${req.params.uid}`).catch(() => null)
     if (predictRes) {
       return res.json({ ...data, ...predictRes.data })
     }
@@ -135,7 +134,7 @@ router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
 // GET /api/cycle/predict/:uid — next period + vulnerability window from LSTM
 router.get('/predict/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
-    const predictRes = await axios.get(`${AI_URL}/api/cycle/predict/${req.params.uid}`, { timeout: 8000 })
+    const predictRes = await ai.get(`/api/cycle/predict/${req.params.uid}`, { timeout: 8000 })
     res.json(predictRes.data)
   } catch (error) {
     res.status(503).json({ error: 'AI service unavailable', message: error.message })

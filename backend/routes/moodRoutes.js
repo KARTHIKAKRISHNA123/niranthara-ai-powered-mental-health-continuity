@@ -3,7 +3,6 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
 const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
@@ -12,7 +11,7 @@ const { encrypt } = require('../utils/encryption')
 const { validateMoodLog } = require('../utils/validators')
 const { sendClinicianCrisisAlert } = require('../services/notificationService')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 const getRecentPassiveLogs = async (uid, days = 7) => {
   try {
@@ -43,9 +42,9 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
 
     if (journalText && journalText.trim().length > 5) {
       const [sentRes, emoRes, crisisRes] = await Promise.allSettled([
-        axios.post(`${AI_URL}/api/sentiment/analyze`, { text: journalText }, { timeout: 10000 }),
-        axios.post(`${AI_URL}/api/emotion/detect`,    { text: journalText }, { timeout: 10000 }),
-        axios.post(`${AI_URL}/api/crisis/detect`,     { text: journalText, uid }, { timeout: 10000 })
+        ai.post(`/api/sentiment/analyze`, { text: journalText }, { timeout: 10000 }),
+        ai.post(`/api/emotion/detect`,    { text: journalText }, { timeout: 10000 }),
+        ai.post(`/api/crisis/detect`,     { text: journalText, uid }, { timeout: 10000 })
       ])
       if (sentRes.status   === 'fulfilled') { nlpResults.sentimentScore = sentRes.value.data.score; nlpResults.sentimentLabel = sentRes.value.data.label; nlpResults.detectedLanguage = sentRes.value.data.language }
       if (emoRes.status    === 'fulfilled') { nlpResults.emotionLabel = emoRes.value.data.emotion; nlpResults.emotionConfidence = emoRes.value.data.confidence }
@@ -58,12 +57,12 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
     const divergence = Math.abs(moodPos - sentPos)
 
     // Step 4 — Personalized cycle vulnerability (LSTM)
-    const cycleRes = await axios.get(`${AI_URL}/api/cycle/predict/${uid}`, { timeout: 8000 })
+    const cycleRes = await ai.get(`/api/cycle/predict/${uid}`, { timeout: 8000 })
       .catch(() => ({ data: { vulnerabilityScore: 0, currentPhase: 'unknown', currentDay: 0 } }))
 
     // Step 5 — XGBoost 14-feature risk prediction
     const passiveLogs = await getRecentPassiveLogs(uid)
-    const riskRes = await axios.post(`${AI_URL}/api/predict/risk`, {
+    const riskRes = await ai.post(`/api/predict/risk`, {
       uid, moodScore: Number(moodScore || 3), energyLevel: Number(energyLevel || 5),
       anxietyLevel: Number(anxietyLevel || 5), sleepHours: Number(sleepHours || 7),
       sentimentScore: nlpResults.sentimentScore, emotionLabel: nlpResults.emotionLabel,

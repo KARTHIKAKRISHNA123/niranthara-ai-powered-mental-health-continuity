@@ -2,13 +2,12 @@
 
 const express = require('express')
 const router  = express.Router()
-const axios   = require('axios')
 const { db }  = require('../config/firebase')
 const verifyToken = require('../middleware/verifyToken')
 const { requireSelfOrAssignedClinician } = require('../middleware/authorize')
 const { generalLimiter } = require('../middleware/rateLimiter')
 
-const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'
+const { ai } = require('../utils/aiClient')
 
 const buildFeatureVector = async (uid, db) => {
   const thirtyAgo = new Date(); thirtyAgo.setDate(thirtyAgo.getDate() - 30)
@@ -46,7 +45,7 @@ const buildFeatureVector = async (uid, db) => {
 router.get('/score/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const features = await buildFeatureVector(req.params.uid, db)
-    const riskRes  = await axios.post(`${AI_URL}/api/predict/risk`, features, { timeout: 12000 })
+    const riskRes  = await ai.post(`/api/predict/risk`, features, { timeout: 12000 })
     res.json({ ...riskRes.data, uid: req.params.uid, computedAt: new Date().toISOString() })
   } catch (error) {
     res.status(503).json({ error: 'Risk computation unavailable', message: error.message })
@@ -76,7 +75,7 @@ router.get('/history/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
 router.get('/explain/:uid', generalLimiter, verifyToken, requireSelfOrAssignedClinician, async (req, res) => {
   try {
     const features = await buildFeatureVector(req.params.uid, db)
-    const explainRes = await axios.post(`${AI_URL}/api/predict/explain`, features, { timeout: 15000 })
+    const explainRes = await ai.post(`/api/predict/explain`, features, { timeout: 15000 })
     res.json(explainRes.data)
   } catch (error) {
     res.status(503).json({ error: 'Explanation unavailable', message: error.message })
