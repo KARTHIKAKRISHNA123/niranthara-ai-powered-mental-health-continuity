@@ -50,7 +50,7 @@ export default function SignupScreen({ navigation }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityLabel="Go back to sign in">
               <Text style={styles.backText}>← Back</Text>
             </TouchableOpacity>
           </View>
@@ -89,6 +89,7 @@ export default function SignupScreen({ navigation }) {
             <TouchableOpacity 
               style={styles.btnPrimary} 
               onPress={handleSignup}
+              accessibilityLabel="Create your Niranthara account"
               disabled={loading}
             >
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Sign Up</Text>}

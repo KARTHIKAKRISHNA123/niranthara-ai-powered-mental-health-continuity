@@ -68,36 +68,47 @@ cd mobile-app ; npm start
 
 ---
 
-## 3. The demo script (7 minutes)
+## 3. THE MASTER DEMO — one continuous story, every device, every capability (~8 min)
 
-Setup: **dashboard projected on the big screen, phone mirrored or held up beside it.** Two windows visible at once is the whole trick — the audience watches data travel.
+This is the single top-notch demo. It weaves all 28 cookbook demos (§3.5) into one narrative across three surfaces at once. **Devices on stage:** the Fitbit Charge 6 on your wrist, the Android phone in your hand (patient Ananya), the laptop projected (clinician dashboard, logged in, notifications allowed, one tab). The audience's job is to watch data travel between them.
 
-**[0:00] The problem (30 s).**
-"A psychiatrist sees a patient one hour a month. The other 729 hours are invisible — that's where symptoms return, medication stops, and patients disappear. Niranthara makes those 729 hours visible. Everything you're about to see is a trained model — no keyword matching anywhere."
+**Pre-stage (from §2):** all services warm, one chat message already sent (classifier warm-up), dashboard on the Patients page showing the pulsing "Live · Firestore onSnapshot" indicator, biometric mode set (SIMULATED recommended; REAL if the morning wrist-check passed).
 
-**[0:30] Patient side — passive + active signal (90 s).**
-- Phone Home: point at risk ring, cycle ring ("a per-user LSTM forecasts her hormonal vulnerability window — most platforms treat this as noise; we model it").
-- Tap **Sync Biometrics** → HR/HRV/sleep/steps land. "Health Connect — works with Fitbit, Samsung, Pixel, any Android wearable."
-- Take the **Wellbeing check** (PHQ-9), answer quickly to a moderate-ish score. "Validated clinical instrument, scored server-side, shared with the care team instantly." Show the result screen.
-- Dashboard: refresh PatientDetail → **the PHQ-9 point just appeared on the assessments chart.**
+---
 
-**[2:00] The journal → live risk pipeline (2 min). THE MONEY SHOT.**
-- Phone Journal: log a low mood with a concerning line, e.g. *"I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore."*
-- Narrate while it processes: "That text just hit three transformers in parallel — sentiment, emotion, crisis — plus the cycle LSTM and a 15-feature XGBoost fusion. The journal itself was AES-256 encrypted before it touched the database; the models see it, the dashboard never does."
-- **Projected dashboard: the alert appears within ~1 second** (Firestore onSnapshot — rehearse this moment; it reliably gets a reaction).
-- Open the alert → PatientDetail: risk trajectory chart, **Top Risk Factors (SHAP)** — "the AI shows its work; clinicians don't act on black boxes."
+**ACT 1 — The invisible patient becomes visible (0:00-1:30). Devices: watch + phone.**
 
-**[4:00] Crisis path — detection AND response (60 s).**
-- Phone Chat: send a distress message. The crisis classifier (mental-roberta) fires → **the full-screen support screen opens**: tap-to-call Tele-MANAS 14416, grounding exercise, breathing.
-- "Detection without response is a liability. The patient gets help in-app immediately; the clinician gets the escalation in parallel — the escalation cron re-sweeps every 15 minutes so nothing sits unseen."
-- Bonus: type *"how much sertraline should I take?"* → the model declines and redirects to the prescriber. "Guardrails on the output side too — this assistant never plays doctor."
+Open on the projected caseload: "A psychiatrist sees a patient one hour a month. The other 729 hours are invisible — that's where symptoms return and patients quietly disappear. This dashboard is those 729 hours."
 
-**[5:00] Clinician intelligence (90 s).**
-- PatientDetail → **Generate Summary**: five clinical sentences from 30 days of structured signals. "The 15-minute visit, prepped in 30 seconds — and it's built from model outputs, never raw journal text. Privacy is architectural."
-- Sweep the rest: mood-sentiment divergence tile ("she says fine, her language says otherwise — masked depression as a first-class signal"), PHQ-9 trajectory, alert resolve flow.
+Raise your wrist: "This Fitbit has been watching all day." Phone Home → **Sync Biometrics** → HR/HRV/steps/sleep fill the card (D4/D5). "It reads Health Connect, not Fitbit — same code for Samsung, Pixel, any wearable. Absent signals are excluded, not faked — and no single signal can ever page a clinician alone; stress alerts need corroboration." Point at the risk ring and cycle ring (D1): "a per-user LSTM forecasts her hormonal vulnerability window — most platforms treat this as noise; we model it."
 
-**[6:30] Close (30 s).**
-"Chatbots talk. Dashboards display. Niranthara closes the loop: passive detection → just-in-time intervention → clinician escalation → follow-up recapture — per-patient models, explainable decisions, Indian languages. Continuity is the product."
+**ACT 2 — Clinical ground truth (1:30-2:30). Devices: phone → dashboard.**
+
+Home → **Wellbeing check** → answer the PHQ-9 to a moderate score (D8). "The validated instrument psychiatry actually uses — scored server-side, one question per screen." Result screen → switch to the projector: open her PatientDetail → **the score just landed on the assessments trajectory** (D24). "Symptom trend between visits, not a memory test at the appointment."
+
+**ACT 3 — THE MONEY SHOT (2:30-4:00). Devices: phone → projector, live.**
+
+Journal tab → mood 2/5 → type: *"I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore."* → save (D7). Narrate over the ~1s of processing: "Three transformers in parallel — sentiment, emotion, crisis — the cycle LSTM, then a 15-feature XGBoost fusion. The journal was AES-256 encrypted before it touched the database."
+
+**Do not talk over what happens next.** The alert lands on the projected dashboard in about one second. Let the room see it. Then: open the alert → PatientDetail → **Top Risk Factors** (D23): "SHAP explainability — the model shows its work. And notice the suppression signal: she *said* fine; her language didn't. Masked depression is a first-class feature here."
+
+If the dashboard tab were minimized, the OS notification still fires (D20) — mention it or show it: "the clinician doesn't need to be watching."
+
+**ACT 4 — The patient isn't alone either (4:00-5:30). Device: phone.**
+
+Back to the phone — Home now shows the **breathing card** (D14): "risk went up, so a just-in-time intervention surfaced — timed by a per-user receptivity model, not a marketing scheduler." Open **Care** → send: *"I don't know how to handle tonight."* → warm reply in seconds, model tag visible (D11). Then the stunt — type: *"what dose of sertraline should I take?"* → instant deferral (D12): "deterministic guardrail, fires before the LLM even runs — this assistant never plays doctor." Tap **Support** in the header (D13): full crisis screen — tap-to-call Tele-MANAS 14416, grounding, breathing. "Detection without response is a liability. Detection here IS response."
+
+**ACT 5 — Closing the loop (5:30-7:00). Device: projector.**
+
+PatientDetail → **Generate Summary** (D25): while it writes, point at the alert queue (D21): "this loss-of-follow-up alert came from a cron that sweeps every 15 minutes — high-risk plus three days silent. Nobody exits care unnoticed. That's the problem statement, answered by a background job." Summary appears: "thirty days — mood trend, divergence, crisis events, assessments — in five clinical sentences, built from model outputs, never raw journal text. The 15-minute visit, prepped in 30 seconds." **Resolve** the alert: "acknowledged, on the record."
+
+**CLOSE (7:00-7:30).**
+
+"Chatbots talk. Dashboards display. Niranthara closes the loop: a watch that senses, models that predict, interventions that arrive when the patient will accept them, clinicians who see it explained, and a system that notices silence. Per-patient models, explainable decisions, Indian languages. Continuity is the product."
+
+---
+
+**Timing discipline:** rehearsed beats total ~32s of actual processing; the rest is your narration. If any beat fails live, the failure playbook (§4) has the recovery, and every act references its cookbook entry (§3.5) for the fallback. Cut Act 2 for a 5-minute slot; add D3 (suppression arc on phone) and D18 (airplane-mode offline log) for a 10-minute slot.
 
 ---
 

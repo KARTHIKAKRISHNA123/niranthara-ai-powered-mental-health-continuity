@@ -110,23 +110,23 @@ export default function SomaticBreathing({ navigation }) {
       </View>
 
       {phase === 'ready' && sessionCount === 0 && (
-        <TouchableOpacity style={styles.startBtn} onPress={runCycle}>
+        <TouchableOpacity style={styles.startBtn} onPress={runCycle} accessibilityLabel="Start the breathing exercise">
           <Text style={styles.btnText}>Start Breathing</Text>
         </TouchableOpacity>
       )}
 
       {phase === 'ready' && sessionCount > 0 && (
         <View style={styles.feedbackContainer}>
-          <TouchableOpacity style={styles.startBtn} onPress={runCycle}>
+          <TouchableOpacity style={styles.startBtn} onPress={runCycle} accessibilityLabel="Do one more breathing round">
             <Text style={styles.btnText}>One More Round</Text>
           </TouchableOpacity>
           
           <Text style={styles.feedbackTitle}>How do you feel now?</Text>
           <View style={styles.feedbackRow}>
-            <TouchableOpacity style={styles.feedbackBtn} onPress={() => logResponse('feel_better')}>
+            <TouchableOpacity style={styles.feedbackBtn} onPress={() => logResponse('feel_better')} accessibilityLabel="I feel better">
               <Text style={styles.feedbackBtnText}>I feel better</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.feedbackBtn, styles.helpBtn]} onPress={() => logResponse('need_more_help')}>
+            <TouchableOpacity style={[styles.feedbackBtn, styles.helpBtn]} onPress={() => logResponse('need_more_help')} accessibilityLabel="I need more help">
               <Text style={styles.feedbackBtnText}>I need more help</Text>
             </TouchableOpacity>
           </View>

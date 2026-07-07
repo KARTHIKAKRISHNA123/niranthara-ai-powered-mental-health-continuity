@@ -64,14 +64,16 @@ export default function LoginScreen({ navigation }) {
             <TouchableOpacity 
               style={styles.btnPrimary} 
               onPress={handleLogin}
+              accessibilityLabel="Sign in to Niranthara"
               disabled={loading}
             >
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Sign In</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.btnSecondary} 
+            <TouchableOpacity
+              style={styles.btnSecondary}
               onPress={() => navigation.navigate('Signup')}
+              accessibilityLabel="Create a new account"
             >
               <Text style={styles.btnSecondaryText}>New here? Create an account</Text>
             </TouchableOpacity>

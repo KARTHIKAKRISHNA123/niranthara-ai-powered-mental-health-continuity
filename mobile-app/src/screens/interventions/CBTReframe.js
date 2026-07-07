@@ -103,9 +103,10 @@ export default function CBTReframe({ navigation, route }) {
             />
           </View>
 
-          <TouchableOpacity 
-            style={styles.saveBtn} 
+          <TouchableOpacity
+            style={styles.saveBtn}
             onPress={handleSave}
+            accessibilityLabel="Save your reframed thought"
             disabled={loading}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Save Reframe</Text>}
