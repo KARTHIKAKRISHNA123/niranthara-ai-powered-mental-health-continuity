@@ -132,13 +132,16 @@ router.post('/flag/:uid', verifyToken, requireClinician, async (req, res) => {
 })
 
 // GET /api/clinician/alerts — Unresolved alerts
+// Fetch by clinicianUid only, filter/sort in memory — same composite-index
+// avoidance as the dashboard (the indexed query 500'd in testing).
 router.get('/alerts', generalLimiter, verifyToken, requireClinician, async (req, res) => {
   try {
     const snap = await db.collection('clinicianAlerts')
       .where('clinicianUid', '==', req.user.uid)
-      .where('resolved', '==', false)
-      .orderBy('timestamp', 'desc').get()
+      .get()
     const alerts = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(a => a.resolved === false)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     res.json({ alerts, count: alerts.length })
   } catch (error) {
     res.status(500).json({ error: error.message })

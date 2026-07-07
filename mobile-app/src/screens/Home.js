@@ -300,7 +300,7 @@ function HealthConnectCard({ onSync }) {
   };
 
   const isSimulated = biometrics?.source === 'simulation';
-  const stressColor = !biometrics ? COLORS.warmGray
+  const stressColor = !biometrics || biometrics.hrv == null ? COLORS.warmGray
     : biometrics.hrv < 40 ? COLORS.alert
     : biometrics.hrv < 55 ? COLORS.warning : COLORS.sage;
 
@@ -336,8 +336,10 @@ function HealthConnectCard({ onSync }) {
 
       {biometrics ? (
         <View style={s.bioGrid}>
+          {/* Absent signals show an em dash — a vendor may sync only some
+              record types (Fitbit never writes HRV to Health Connect) */}
           <View style={s.bioCell}>
-            <Text style={s.bioCellValue}>{biometrics.heartRate}</Text>
+            <Text style={s.bioCellValue}>{biometrics.heartRate ?? '—'}</Text>
             <Text style={s.bioCellLabel}>BPM</Text>
           </View>
           <View style={s.bioCell}>
@@ -347,11 +349,15 @@ function HealthConnectCard({ onSync }) {
             <Text style={s.bioCellLabel}>HRV ms</Text>
           </View>
           <View style={s.bioCell}>
-            <Text style={s.bioCellValue}>{(biometrics.steps / 1000).toFixed(1)}k</Text>
+            <Text style={s.bioCellValue}>
+              {biometrics.steps != null ? `${(biometrics.steps / 1000).toFixed(1)}k` : '—'}
+            </Text>
             <Text style={s.bioCellLabel}>Steps</Text>
           </View>
           <View style={s.bioCell}>
-            <Text style={s.bioCellValue}>{biometrics.sleepHours}h</Text>
+            <Text style={s.bioCellValue}>
+              {biometrics.sleepHours != null ? `${biometrics.sleepHours}h` : '—'}
+            </Text>
             <Text style={s.bioCellLabel}>Sleep</Text>
           </View>
         </View>

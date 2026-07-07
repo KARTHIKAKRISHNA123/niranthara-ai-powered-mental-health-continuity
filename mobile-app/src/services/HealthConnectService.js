@@ -70,11 +70,14 @@ function _grantedCoreSignal(granted) {
 
 // Map record dataOrigin package → friendly provider name for the UI.
 const PROVIDER_NAMES = {
+  'com.fitbit.FitbitMobile':            'Fitbit',
   'com.google.android.apps.fitness':    'Google Fit',
   'com.google.android.apps.healthdata': 'Health Connect',
   'com.sec.android.app.shealth':        'Samsung Health',
   'com.crrepa.band.dafit':              'Da Fit',
   'com.xiaomi.wearable':                'Mi Fitness',
+  'com.garmin.android.apps.connectmobile': 'Garmin Connect',
+  'com.huawei.health':                  'Huawei Health',
 };
 function _friendlyProvider(origin) {
   if (!origin) return null;
@@ -171,10 +174,11 @@ export async function fetchBiometrics() {
     ]);
     const recs = (r) => (r.status === 'fulfilled' ? r.value?.records || [] : []);
 
-    // Heart rate (avg of all samples)
+    // Heart rate (avg of all samples; null when the vendor hasn't synced HR —
+    // never fabricate a number and label it real)
     const hrList    = recs(hr);
     const hrSamples = hrList.flatMap(r => r.samples?.map(s => s.beatsPerMinute) || []);
-    const avgHr     = hrSamples.length ? hrSamples.reduce((s, v) => s + v, 0) / hrSamples.length : 72;
+    const avgHr     = hrSamples.length ? hrSamples.reduce((s, v) => s + v, 0) / hrSamples.length : null;
 
     // Steps (sum)
     const stepList   = recs(stepsR);
@@ -185,7 +189,7 @@ export async function fetchBiometrics() {
     const sleepHours = sleepList.reduce((sum, r) =>
       sum + (new Date(r.endTime) - new Date(r.startTime)) / 3.6e6, 0);
 
-    // Resting HR (latest)
+    // Resting HR (latest; fall back to avg HR only if we actually measured one)
     const restList  = recs(restR);
     const restingHr = restList.length ? (restList[restList.length - 1]?.beatsPerMinute || avgHr) : avgHr;
 
@@ -209,16 +213,20 @@ export async function fetchBiometrics() {
       _originOf(stepList[0]) || _originOf(hrList[0]) || _originOf(sleepList[0]) || _originOf(hrvList[0])
     );
 
+    // Absent signals are null, never 0 — the backend treats 0 as a real
+    // measurement and would score "0 steps" as maximum deviation (false
+    // alerts when a vendor has synced only some record types, e.g. Fitbit
+    // syncs HR before steps land, and never writes HRV to Health Connect).
     return {
       source:           'health_connect',
       isReal:           true,
       provider:         provider || 'Health Connect',
       fetchedAt:        endTime.toISOString(),
-      heartRate:        Math.round(avgHr),
-      restingHeartRate: Math.round(restingHr),
+      heartRate:        avgHr != null ? Math.round(avgHr) : null,
+      restingHeartRate: restingHr != null ? Math.round(restingHr) : null,
       hrv:              latestHrv ? Math.round(latestHrv) : null,
-      steps:            totalSteps,
-      sleepHours:       Math.round(sleepHours * 10) / 10,
+      steps:            stepList.length ? totalSteps : null,
+      sleepHours:       sleepList.length ? Math.round(sleepHours * 10) / 10 : null,
       calories:         totalKcal ? Math.round(totalKcal) : null,
       distanceKm:       totalMet ? Math.round(totalMet / 100) / 10 : null,
       windowHours:      24,

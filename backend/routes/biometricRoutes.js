@@ -46,26 +46,35 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
     const avgStepBase    = baseline.avgSteps      || 6500
     const avgSleepBase   = baseline.avgSleep      || 7.2
 
-    const hrDeviation    = heartRate
+    // Absent signals (null/undefined) are excluded from the score entirely —
+    // treating "not synced yet" as 0 scored maximum deviation and could fire
+    // false alerts when a vendor syncs only some record types (Fitbit never
+    // writes HRV to Health Connect; steps/sleep can lag HR by hours).
+    const hrDeviation    = heartRate != null
       ? Math.min(Math.abs(heartRate - avgHrBaseline) / avgHrBaseline, 1)
-      : 0
-    const hrvDeviation   = hrv
+      : null
+    const hrvDeviation   = hrv != null
       ? Math.min(Math.max((avgHrvBaseline - hrv) / avgHrvBaseline, 0), 1)
-      : 0
-    const stepsDeviation = steps !== undefined
+      : null
+    const stepsDeviation = steps != null
       ? Math.min(Math.max((avgStepBase - steps) / avgStepBase, 0), 1)
-      : 0
-    const sleepDeviation = sleepHours !== undefined
+      : null
+    const sleepDeviation = sleepHours != null
       ? Math.min(Math.max((avgSleepBase - sleepHours) / avgSleepBase, 0), 1)
-      : 0
+      : null
 
-    // Combined physiological stress score (weighted average)
-    const physiologicalStressScore = (
-      hrDeviation    * 0.30 +
-      hrvDeviation   * 0.35 +
-      stepsDeviation * 0.20 +
-      sleepDeviation * 0.15
-    )
+    // Weighted average over the signals we actually have, renormalized so a
+    // partial sync is scored fairly (weights: HR .30, HRV .35, steps .20, sleep .15)
+    const signals = [
+      [hrDeviation,    0.30],
+      [hrvDeviation,   0.35],
+      [stepsDeviation, 0.20],
+      [sleepDeviation, 0.15],
+    ].filter(([d]) => d != null)
+    const weightSum = signals.reduce((s, [, w]) => s + w, 0)
+    const physiologicalStressScore = weightSum > 0
+      ? signals.reduce((s, [d, w]) => s + d * w, 0) / weightSum
+      : 0
 
     // ── 3. Write biometric log to Firestore ───────────────────────────────────
     const biometricLog = {
@@ -74,15 +83,16 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       fetchedAt:              fetchedAt || new Date().toISOString(),
       createdAt:              new Date().toISOString(),
       windowHours,
-      heartRate:              heartRate              || null,
-      restingHeartRate:       restingHeartRate       || null,
-      hrv:                    hrv                    || null,
-      steps:                  steps                  || 0,
-      sleepHours:             sleepHours             || 0,
+      heartRate:              heartRate              ?? null,
+      restingHeartRate:       restingHeartRate       ?? null,
+      hrv:                    hrv                    ?? null,
+      steps:                  steps                  ?? null,
+      sleepHours:             sleepHours             ?? null,
       hrDeviation,
       hrvDeviation,
       stepsDeviation,
       sleepDeviation,
+      signalCount:            signals.length,
       physiologicalStressScore: Math.round(physiologicalStressScore * 100) / 100,
     }
 
@@ -91,14 +101,15 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
     // ── 4. Update user doc with latest biometric snapshot ─────────────────────
     await db.collection('users').doc(uid).set({
       lastBiometricSync:  new Date().toISOString(),
-      lastHrvDeviation:   Math.round(hrvDeviation * 100) / 100,
-      lastHr:             heartRate || null,
-      lastHrv:            hrv       || null,
+      lastHrvDeviation:   hrvDeviation != null ? Math.round(hrvDeviation * 100) / 100 : null,
+      lastHr:             heartRate ?? null,
+      lastHrv:            hrv       ?? null,
       physiologicalStress: Math.round(physiologicalStressScore * 100) / 100,
     }, { merge: true })
 
     // ── 5. Re-run XGBoost risk with biometric context ─────────────────────────
     let riskData = null
+    let alertCreated = false
     try {
       const sevenAgo  = new Date(); sevenAgo.setDate(sevenAgo.getDate() - 7)
       const moodSnap  = await db.collection('moodLogs')
@@ -134,7 +145,13 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       }, { merge: true })
 
       // ── 6. Clinician alert if physiological stress spike ─────────────────────
-      const spikeAlert = physiologicalStressScore > 0.55 || riskData.riskScore > 0.60
+      // Stress-score alerts require >= 2 corroborating signals — a single
+      // deviant signal (elevated HR from stairs/caffeine) never alerts alone.
+      // The XGBoost risk path (which fuses 7-day mood context) has no such
+      // gate: it is already multi-signal by construction.
+      const stressAlert = signals.length >= 2 && physiologicalStressScore > 0.55
+      const spikeAlert  = stressAlert || riskData.riskScore > 0.60
+      alertCreated = spikeAlert && !!userData.assignedClinician
       if (spikeAlert && userData.assignedClinician) {
         await db.collection('clinicianAlerts').add({
           patientUid:      uid,
@@ -173,10 +190,11 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       message:                  'Biometrics synced',
       logId:                    logRef.id,
       physiologicalStressScore: Math.round(physiologicalStressScore * 100) / 100,
-      hrvDeviation:             Math.round(hrvDeviation * 100) / 100,
+      hrvDeviation:             hrvDeviation != null ? Math.round(hrvDeviation * 100) / 100 : null,
+      signalCount:              signals.length,
       riskScore:                riskData?.riskScore || null,
       riskLevel:                riskData?.riskLevel || null,
-      alertCreated:             physiologicalStressScore > 0.55,
+      alertCreated,
     })
   } catch (error) {
     console.error('[biometricSync] Error:', error.message)

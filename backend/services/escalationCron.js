@@ -80,15 +80,21 @@ async function checkEscalations() {
 
 // ─── Helper: create Firestore alert + FCM push ───────────────────────────────
 async function _createAlert(uid, user, type, severity, message) {
-  // 1. Firestore alert document
+  // 1. Firestore alert document — clinicianUid is REQUIRED: the dashboard and
+  // /clinician/alerts both filter on it; without it the alert is invisible.
   await db.collection('clinicianAlerts').add({
-    patientUid:  uid,
-    patientName: user.name || 'Unknown',
+    patientUid:     uid,
+    patientName:    user.name || 'Unknown',
+    clinicianUid:   user.assignedClinician || '',
     type,
     severity,
     message,
-    resolved:    false,
-    timestamp:   new Date().toISOString(),
+    triggerFactors: [message],
+    riskScore:      user.riskScore || 0,
+    crisisProb:     0,
+    resolved:       false,
+    resolvedAt:     null,
+    timestamp:      new Date().toISOString(),
   });
 
   // 2. Mark user to prevent re-escalation spam
