@@ -1,0 +1,14 @@
+# EAS archives every non-gitignored file from the GIT ROOT (monorepo behavior)
+# — a .easignore inside mobile-app/ is never read. Only mobile-app/ matters
+# for the Android build; exclude everything else that has weight.
+ai-service/
+backend/
+dashboard/
+smartwatch/
+docs/
+node_modules/
+.venv/
+venv/
+.expo/
+*.pkl
+*.pt

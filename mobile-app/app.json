@@ -45,7 +45,11 @@
         "android.permission.health.READ_RESTING_HEART_RATE",
         "android.permission.health.READ_HEART_RATE_VARIABILITY",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-        "android.permission.health.READ_DISTANCE"
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
@@ -82,7 +86,10 @@
       "react-native-health-connect"
     ],
     "extra": {
-      "eas": {}
-    }
+      "eas": {
+        "projectId": "d05ef5ad-a496-44a8-83c6-5c56ea80cb0c"
+      }
+    },
+    "owner": "karthikakrishna123s-team"
   }
 }
