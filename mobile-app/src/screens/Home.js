@@ -16,12 +16,14 @@ import { CompactCycleRing } from './Cycle';
 import { api } from '../utils/api';
 import { processOfflineSync } from '../services/syncService';
 import { useAuth } from '../context/AuthContext';
+import { tracksCycle } from '../utils/profile';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { app } from '../utils/firebase';
 import {
   syncBiometricsToBackend, syncCrisisBiometrics,
   toggleBiometricMode, BIOMETRIC_SOURCE,
 } from '../services/HealthConnectService';
+import * as GoogleHealth from '../services/GoogleHealthService';
 import { ActivityIndicator } from 'react-native';
 
 // AnimatedCircle for SVG ring fill
@@ -269,21 +271,44 @@ function HealthConnectCard({ onSync }) {
   const [lastSync,   setLastSync]   = useState(null);
   const [biometrics, setBiometrics] = useState(null);
   const [alertFired, setAlertFired] = useState(false);
+  const [gh,         setGh]         = useState({ configured: false, connected: false });
+  const [note,       setNote]       = useState('');
+
+  // Cloud path availability is a server fact, so ask the server once.
+  useEffect(() => { GoogleHealth.getStatus().then(setGh); }, []);
 
   const runSync = async (fn) => {
     setSyncing(true);
     setAlertFired(false);
+    setNote('');
     const result = await fn();
     setSyncing(false);
     if (result.success) {
       setLastSync(new Date());
       setBiometrics(result.biometrics);
-      setAlertFired(result.data?.alertCreated || false);
-      if (onSync) onSync(result.data);
+      setAlertFired(result.data?.alertCreated || result.alertCreated || false);
+      if (onSync) onSync(result.data || result);
+    } else {
+      setNote(result.error || 'Sync failed.');
     }
   };
 
-  const handleSync = () => runSync(syncBiometricsToBackend);
+  // Prefer the cloud path once connected: it returns the user's actual watch
+  // data, whereas Health Connect in Expo Go can only ever simulate.
+  const handleSync = () =>
+    gh.connected ? runSync(() => GoogleHealth.sync(24)) : runSync(syncBiometricsToBackend);
+
+  const handleConnectGoogle = async () => {
+    setNote('');
+    const r = await GoogleHealth.connect();
+    if (r.started) {
+      setNote('Finish the Google consent in your browser, then come back and sync.');
+      // Re-check on return; the callback lands on the backend, not the app.
+      setTimeout(() => GoogleHealth.getStatus().then(setGh), 8000);
+    } else {
+      setNote(r.error || 'Could not open the Google consent page.');
+    }
+  };
   // Hidden presenter control: long-press fires a deterministic HRV-crash
   // through the real pipeline so the clinician alert lands reliably on stage.
   const handleDemoCrisis = () => runSync(syncCrisisBiometrics);
@@ -386,9 +411,30 @@ function HealthConnectCard({ onSync }) {
         {syncing
           ? <ActivityIndicator color={COLORS.warmWhite} size="small" />
           : <><Feather name="activity" size={15} color={COLORS.warmWhite} />
-             <Text style={s.connectBtnText}>Sync Biometrics Now</Text></>
+             <Text style={s.connectBtnText}>
+               {gh.connected ? 'Sync from Google Health' : 'Sync Biometrics Now'}
+             </Text></>
         }
       </TouchableOpacity>
+
+      {/* Cloud path — the only way a real Fitbit reaches the pipeline in Expo
+          Go, since Health Connect is a native module needing a dev build. */}
+      {gh.configured && !gh.connected && (
+        <TouchableOpacity
+          style={s.ghConnectBtn}
+          onPress={handleConnectGoogle}
+          accessibilityLabel="Connect your Fitbit through Google Health"
+        >
+          <Feather name="link" size={14} color={COLORS.roseDark} />
+          <Text style={s.ghConnectText}>Connect Fitbit via Google Health</Text>
+        </TouchableOpacity>
+      )}
+
+      {gh.connected && (
+        <Text style={s.ghStatus}>Google Health connected — reading your real watch data</Text>
+      )}
+
+      {note ? <Text style={s.watchNote}>{note}</Text> : null}
     </View>
   );
 }
@@ -439,6 +485,8 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate(name);
   };
 
+  const showCycle = tracksCycle(dbUser);
+
   const fetchData = async () => {
     await processOfflineSync();
     if (!currentUser) return;
@@ -446,7 +494,10 @@ export default function HomeScreen({ navigation }) {
       const [monthRes, passRes, cycleRes] = await Promise.all([
         api.get(`/mood/monthly/${currentUser.uid}`),
         api.get(`/passive/summary/${currentUser.uid}`).catch(() => ({ data: null })),
-        api.get(`/cycle/today/${currentUser.uid}`).catch(() => ({ data: null })),
+        // Never request cycle data for a user who does not track a cycle.
+        showCycle
+          ? api.get(`/cycle/today/${currentUser.uid}`).catch(() => ({ data: null }))
+          : Promise.resolve({ data: null }),
       ]);
       if (monthRes.data?.aggregates) setData(monthRes.data.aggregates);
       if (passRes.data) setPassive(passRes.data);
@@ -485,26 +536,38 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Dual ring card */}
+        {/* Ring card — pairs risk with the cycle phase only when the user
+            tracks one, otherwise risk stands alone rather than leaving a gap */}
         <Animated.View style={[s.dualCard, entrance(anim1, 14)]}>
           <View style={s.ringCell}>
             <Text style={s.ringLabel}>RISK SCORE</Text>
             <RiskRing score={riskScore} />
           </View>
-          <View style={s.ringDivider} />
-          <TouchableOpacity
-            style={s.ringCell}
-            onPress={() => navigation.getParent()?.navigate('MainTabs', { screen: 'Cycle' })}
-            accessibilityLabel="View your cycle phase"
-          >
-            <Text style={s.ringLabel}>CYCLE PHASE</Text>
-            <CompactCycleRing
-              cycleLength={cycle.cycleLength || 28}
-              currentDay={cycle.currentDay || 1}
-              vulnerabilityScore={cycle.vulnerabilityScore || 0}
-              size={108}
-            />
-          </TouchableOpacity>
+          {showCycle && (
+            <>
+              <View style={s.ringDivider} />
+              <TouchableOpacity
+                style={s.ringCell}
+                onPress={() => navigation.getParent()?.navigate('MainTabs', { screen: 'Cycle' })}
+                accessibilityLabel="View your cycle phase"
+              >
+                <Text style={s.ringLabel}>CYCLE PHASE</Text>
+                {cycle.hasData === false ? (
+                  <View style={s.cycleEmpty}>
+                    <Feather name="moon" size={22} color={COLORS.softGray} />
+                    <Text style={s.cycleEmptyText}>Log your period{'\n'}to start tracking</Text>
+                  </View>
+                ) : (
+                  <CompactCycleRing
+                    cycleLength={cycle.cycleLength || 28}
+                    currentDay={cycle.currentDay || 1}
+                    vulnerabilityScore={cycle.vulnerabilityScore || 0}
+                    size={108}
+                  />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </Animated.View>
 
         {/* Baseline stats */}
@@ -591,7 +654,7 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* Cycle vulnerability nudge */}
-        {cycle.vulnerabilityScore > 0.65 && (
+        {showCycle && cycle.vulnerabilityScore > 0.65 && (
           <TouchableOpacity style={[s.jitaiCard, { backgroundColor: COLORS.roseLight }]} onPress={() => goToTab('Cycle')} activeOpacity={0.75} accessibilityLabel="View your cycle vulnerability window">
             <View style={[s.jitaiIconBox, { backgroundColor: COLORS.roseDark + '22' }]}>
               <Feather name="moon" size={18} color={COLORS.roseDark} />
@@ -608,7 +671,11 @@ export default function HomeScreen({ navigation }) {
         <View style={s.quickRow}>
           <QuickTile iconName="edit-3" label="Journal" sub="Log mood" onPress={() => goToTab('Journal')} a11y="Go to Journal" />
           <QuickTile iconName="message-circle" label="Care" sub="Talk now" onPress={() => goToTab('Chat')} a11y="Go to Care" />
-          <QuickTile iconName="moon" label="Cycle" sub="View phase" onPress={() => goToTab('Cycle')} a11y="Go to Cycle" />
+          {showCycle ? (
+            <QuickTile iconName="moon" label="Cycle" sub="View phase" onPress={() => goToTab('Cycle')} a11y="Go to Cycle" />
+          ) : (
+            <QuickTile iconName="bar-chart-2" label="Insights" sub="30 days" onPress={() => navigation.navigate('Insights')} a11y="View 30-day insights" />
+          )}
         </View>
 
         {/* Sign out */}
@@ -638,6 +705,8 @@ const s = StyleSheet.create({
   ringDivider: { width: 1, backgroundColor: 'rgba(44,40,38,0.07)', marginVertical: SPACING.xl },
   ringWrap: { alignItems: 'center' },
   riskLabel: { fontFamily: FONTS.medium, fontSize: 11, marginTop: 6 },
+  cycleEmpty: { height: 108, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
+  cycleEmptyText: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray, textAlign: 'center', lineHeight: 16 },
 
   statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
   stat: { flex: 1, backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(44,40,38,0.07)' },
@@ -681,6 +750,14 @@ const s = StyleSheet.create({
   watchMetaSub: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.warmGray },
   connectBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.rose, borderRadius: RADIUS.md, padding: SPACING.lg, justifyContent: 'center', marginTop: SPACING.md, minHeight: 48 },
   connectBtnText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.warmWhite },
+  ghConnectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.roseLight, borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md, marginTop: SPACING.sm, minHeight: 44,
+  },
+  ghConnectText: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.roseDark },
+  ghStatus: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.sageDark, marginTop: SPACING.sm, textAlign: 'center' },
+  watchNote: { fontFamily: FONTS.body, fontSize: 11.5, color: COLORS.warmGray, marginTop: SPACING.sm, lineHeight: 16, textAlign: 'center' },
   // Biometric grid
   bioGrid: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
   bioCell: { flex: 1, backgroundColor: COLORS.cream, borderRadius: RADIUS.md, padding: SPACING.md, alignItems: 'center' },

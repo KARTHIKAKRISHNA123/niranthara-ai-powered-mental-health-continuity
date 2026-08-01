@@ -11,6 +11,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { COLORS, FONTS, RADIUS } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
+import { tracksCycle } from '../utils/profile';
 
 import LoginScreen            from '../screens/Login';
 import SignupScreen           from '../screens/Signup';
@@ -47,6 +48,11 @@ const TAB_LABEL = {
 };
 
 function MainTabs() {
+  // Users who do not track a cycle never get the tab. Rendering it and hiding
+  // the contents would still leave a dead destination in the tab bar.
+  const { dbUser } = useAuth();
+  const showCycle  = tracksCycle(dbUser);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -101,7 +107,9 @@ function MainTabs() {
       <Tab.Screen name="Home"    component={HomeScreen}    options={{ tabBarLabel: TAB_LABEL.Home,    tabBarAccessibilityLabel: 'Home' }} />
       <Tab.Screen name="Journal" component={JournalScreen} options={{ tabBarLabel: TAB_LABEL.Journal, tabBarAccessibilityLabel: 'Journal' }} />
       <Tab.Screen name="Chat"    component={ChatScreen}    options={{ tabBarLabel: TAB_LABEL.Chat,    tabBarAccessibilityLabel: 'Care' }} />
-      <Tab.Screen name="Cycle"   component={CycleScreen}   options={{ tabBarLabel: TAB_LABEL.Cycle,   tabBarAccessibilityLabel: 'Cycle' }} />
+      {showCycle && (
+        <Tab.Screen name="Cycle" component={CycleScreen} options={{ tabBarLabel: TAB_LABEL.Cycle, tabBarAccessibilityLabel: 'Cycle' }} />
+      )}
     </Tab.Navigator>
   );
 }

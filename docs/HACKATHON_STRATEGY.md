@@ -118,7 +118,7 @@ Rehearse aloud. Answers are deliberately 1–3 sentences — expand only if aske
 1. **What's your risk model trained on?** Synthetic data today — stated plainly. The architecture self-labels in production: dropout labels from observed disengagement, JITAI labels from nudge responses, risk labels from subsequent PHQ-9s. Weeks of pilot data make it real; no one can shortcut that time, which is also our moat.
 2. **Why XGBoost and not deep learning for risk?** 15 tabular features, small data, need for SHAP explainability and CPU inference. Deep learning there would be résumé-driven engineering.
 3. **How do you handle missing features (no wearable)?** XGBoost handles missing values natively; the model degrades gracefully — wearables are 1 of 15 features, never the verdict.
-4. **What's your crisis classifier and its false-negative story?** `mental/mental-roberta-base`, tuned for recall over precision; borderline scores are still logged and the escalation cron re-sweeps every 15 minutes, so a single miss doesn't mean silence.
+4. **What's your crisis classifier and its false-negative story?** `sentinet/suicidality` (ELECTRA, fine-tuned for suicidality detection), tuned for recall over precision; borderline scores are still logged and the escalation cron re-sweeps every 15 minutes, so a single miss doesn't mean silence.
 5. **Alert fatigue — false positives will make clinicians ignore you.** Correct, and it's why our production metric is precision-at-fixed-alert-budget (alerts per clinician per day), every alert carries SHAP context, and acknowledgments feed threshold tuning.
 6. **How is the anomaly detection personalized?** An LSTM autoencoder per user learns their behavioral manifold; the anomaly score is reconstruction error against *their own* baseline, and feeds the risk fusion as feature 15.
 7. **Why per-user models? Does that scale?** Personalization is the clinical point — your normal isn't mine. At 1M users we migrate to shared models conditioned on user embeddings; the per-user design is right for the data volumes of the next two years.
@@ -189,7 +189,7 @@ Rehearse aloud. Answers are deliberately 1–3 sentences — expand only if aske
 - [ ] Fresh Python venv built; models pre-downloaded; both NVIDIA tiers probed (script pattern in session history — expect Minimax 20-40s, Llama ~1.5s).
 - [ ] `node scripts/seedTestUser.js` against the demo Firebase project; verify: patient in caseload, 2 alerts, PHQ-9 trajectory chart, SHAP panel populated.
 - [ ] Click all Firestore index-creation URLs from backend logs; confirm "Enabled".
-- [ ] README: fix the stale "Gemma 4B via Ollama" prose (judges read READMEs; the code says NVIDIA chain).
+- [ ] README: fix the stale "the NVIDIA model chain via Ollama" prose (judges read READMEs; the code says NVIDIA chain).
 
 ### T-2 days — full dress rehearsal 1 (on the demo hardware + hotspot)
 - [ ] Run the entire 7-minute script end-to-end, timed, phone + projector.

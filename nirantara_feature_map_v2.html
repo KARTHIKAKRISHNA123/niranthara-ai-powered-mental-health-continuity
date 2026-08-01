@@ -521,7 +521,7 @@
 <div class="ml-grid">
 
   <div class="ml-card crisis">
-    <div class="model-name">mental/mental-roberta-base</div>
+    <div class="model-name">sentinet/suicidality</div>
     <div class="task">Crisis Detection</div>
     <span class="complexity hard">● High Complexity</span>
     <div class="time-badge">⏱ Download: ~1.5GB · First run: 5–10 min warm-up</div>
@@ -595,7 +595,7 @@
   <div class="ml-card chat" style="grid-column: span 3;">
     <div style="display:flex;gap:24px;align-items:flex-start;">
       <div style="flex:1;">
-        <div class="model-name">Gemma 4B via Ollama (CUDA · RTX 3050)</div>
+        <div class="model-name">the NVIDIA model chain via Ollama (CUDA · RTX 3050)</div>
         <div class="task">Context-Aware Generative Chat</div>
         <span class="complexity medium">● Medium Complexity</span>
         <div class="time-badge">⏱ Download: ~4GB · Response: 2–5 sec on RTX 3050 · Fully local</div>
@@ -604,11 +604,11 @@
       <div style="flex:1;">
         <div class="replaces">
           <div class="bad">template: "I understand you're feeling down. Try this breathing exercise."</div>
-          <div class="good">→ Gemma generates unique response every time, culturally sensitive, language-matched</div>
+          <div class="good">→ The LLM generates unique response every time, culturally sensitive, language-matched</div>
         </div>
         <div style="margin-top:12px;padding:10px;background:var(--lav-light);border-radius:10px;">
           <div style="font-size:11px;font-weight:500;color:var(--lavender);margin-bottom:4px;">RTX 3050 + 16GB RAM — Compatibility</div>
-          <div style="font-size:11px;color:var(--charcoal);">✓ Gemma 4B runs comfortably · CUDA accelerated · ~2–5 sec response · All other models fit in VRAM · No cloud needed</div>
+          <div style="font-size:11px;color:var(--charcoal);">✓ the NVIDIA model chain runs comfortably · CUDA accelerated · ~2–5 sec response · All other models fit in VRAM · No cloud needed</div>
         </div>
       </div>
     </div>
@@ -709,7 +709,7 @@
     </div>
     <div class="feature-item">
       <span class="fi-icon">💬</span>
-      <div><div class="fi-name">Tamil AI Chat</div><div class="fi-desc">Gemma 4B · Tamil/Tanglish/English · Voice input (Sarvam STT)</div></div>
+      <div><div class="fi-name">Tamil AI Chat</div><div class="fi-desc">the NVIDIA model chain · Tamil/Tanglish/English · Voice input (Sarvam STT)</div></div>
       <span class="fi-tag tag-nlp">NLP</span>
     </div>
     <div class="feature-item">
@@ -783,7 +783,7 @@
     </div>
     <div class="feature-item">
       <span class="fi-icon">🏥</span>
-      <div><div class="fi-name">Clinician Routes</div><div class="fi-desc">Patients by risk · Gemma summary · Manual flag · Alert resolution</div></div>
+      <div><div class="fi-name">Clinician Routes</div><div class="fi-desc">Patients by risk · LLM summary · Manual flag · Alert resolution</div></div>
       <span class="fi-tag tag-nlp">NLP</span>
     </div>
     <div class="feature-item">
@@ -802,7 +802,7 @@
     </div>
     <div class="feature-item">
       <span class="fi-icon">🚨</span>
-      <div><div class="fi-name">Crisis Classifier (mental-roberta)</div><div class="fi-desc">Probability 0–1 · Tamil translation first · Three escalation tiers</div></div>
+      <div><div class="fi-name">Crisis Classifier (sentinet/suicidality)</div><div class="fi-desc">Probability 0–1 · Tamil translation first · Three escalation tiers</div></div>
       <span class="fi-tag tag-nlp">NLP</span>
     </div>
     <div class="feature-item">
@@ -832,7 +832,7 @@
     </div>
     <div class="feature-item">
       <span class="fi-icon">🤖</span>
-      <div><div class="fi-name">Gemma 4B Chat (Ollama CUDA)</div><div class="fi-desc">Context injection: cycle + mood + emotion + risk · Language-matched response</div></div>
+      <div><div class="fi-name">the NVIDIA model chain Chat (Ollama CUDA)</div><div class="fi-desc">Context injection: cycle + mood + emotion + risk · Language-matched response</div></div>
       <span class="fi-tag tag-nlp">NLP</span>
     </div>
   </div>
@@ -856,7 +856,7 @@
     </div>
     <div class="feature-item">
       <span class="fi-icon">📝</span>
-      <div><div class="fi-name">Gemma Narrative Summary</div><div class="fi-desc">AI-generated 2–3 sentence clinical summary updated daily</div></div>
+      <div><div class="fi-name">the NVIDIA model chain Narrative Summary</div><div class="fi-desc">AI-generated 2–3 sentence clinical summary updated daily</div></div>
       <span class="fi-tag tag-nlp">NLP</span>
     </div>
     <div class="feature-item">
@@ -945,7 +945,7 @@
     <div class="flow-arrow">+</div>
     <div class="flow-node nlp">distilroberta emotion</div>
     <div class="flow-arrow">+</div>
-    <div class="flow-node nlp">mental-roberta crisis prob</div>
+    <div class="flow-node nlp">sentinet/suicidality crisis prob</div>
   </div>
   <div style="height:12px"></div>
   <div class="flow-row">
@@ -969,7 +969,7 @@
     <div class="flow-arrow">+</div>
     <div class="flow-node output">Clinician alert if risk > 0.7</div>
     <div class="flow-arrow">+</div>
-    <div class="flow-node llm">Gemma 4B → contextual response</div>
+    <div class="flow-node llm">the NVIDIA model chain → contextual response</div>
   </div>
 </div>
 
@@ -1064,9 +1064,9 @@
     <tr>
       <td><div class="day-badge critical">4</div></td>
       <td>Apr 22</td>
-      <td>Gemma chat · crisis NLP endpoint · emotion endpoint</td>
+      <td>LLM chat · crisis NLP endpoint · emotion endpoint</td>
       <td>Tamil AI chat screen</td>
-      <td><span class="complexity-dot c-hard"></span>mental-roberta + distilroberta running</td>
+      <td><span class="complexity-dot c-hard"></span>sentinet/suicidality + distilroberta running</td>
     </tr>
     <tr>
       <td><div class="day-badge critical">5</div></td>
@@ -1085,9 +1085,9 @@
     <tr>
       <td><div class="day-badge">7</div></td>
       <td>Apr 25</td>
-      <td>Clinician dashboard backend · Gemma narrative summary</td>
+      <td>Clinician dashboard backend · LLM narrative summary</td>
       <td>Clinician dashboard UI — React.js</td>
-      <td><span class="complexity-dot c-medium"></span>Gemma context injection</td>
+      <td><span class="complexity-dot c-medium"></span>LLM context injection</td>
     </tr>
     <tr>
       <td><div class="day-badge">8</div></td>

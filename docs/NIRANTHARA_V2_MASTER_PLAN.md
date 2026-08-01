@@ -44,7 +44,7 @@ The product is **a continuity-of-care layer between visits**, not a therapist re
 | Poor engagement | JITAI receptivity model — intervene when the user will actually respond | **EXISTS** (`backend/services/jitaiScheduler.js`, per-user XGBoost) |
 | No continuous monitoring | Biometrics + passive sensing + LSTM autoencoder anomaly detection | **EXISTS** (`ai-service/routers/anomaly.py`, `backend/routes/passiveRoutes.js`) |
 | Relapse | Cycle LSTM (per-user vulnerability forecasting) + anomaly score in 15-feature risk fusion | **EXISTS** |
-| Suicide risk | mental-roberta crisis classifier on every journal + chat message; crisis alerts to clinicians | **EXISTS** |
+| Suicide risk | sentinet/suicidality crisis classifier on every journal + chat message; crisis alerts to clinicians | **EXISTS** |
 | Continuity of care | Firestore as shared state between patient app and clinician dashboard, live via `onSnapshot` | **EXISTS** |
 
 This table is the core of the pitch: the hard ML problems are already built. What remains is clinical instrumentation (validated scales), completeness (medication), and presentation.
@@ -146,7 +146,7 @@ The journey's weak points today: no validated-scale baseline at onboarding, no m
 | Firebase Auth | **Keep indefinitely** | OAuth2/JWT requirement from the prompt is *satisfied by* Firebase Auth (it issues JWTs, supports OAuth providers). Rolling your own gains nothing. |
 | Per-user pkl model files | **Keep now, registry V2** | Files-on-disk fine for hundreds of users; MLflow model registry when models need versioning/rollback (§15). |
 | Simulated smartwatch service | **Keep as demo mode** | Already toggleable in `HealthConnectService.js`. Demo reliability > live-data bravado on stage. |
-| README's "Gemma via Ollama" prose | **Replace (docs only)** | Stale; the code uses NVIDIA Minimax. Fix before judges read it. |
+| README's "the NVIDIA model chain via Ollama" prose | **Replace (docs only)** | Stale; the code uses NVIDIA Minimax. Fix before judges read it. |
 
 ---
 
@@ -195,7 +195,7 @@ Legend — **User:** P = patient, C = clinician, F = family/caregiver, A = admin
 | # | Feature | User | Benefit | AI/ML | Cx | Tier |
 |---|---|---|---|---|---|---|
 | 1 | Context-aware LLM companion [E] | P | 2 AM support; engagement anchor; passive symptom signal | LLM + context injection (exists) | M | MVP |
-| 2 | Crisis-gated chat [E] | P | Every message screened by mental-roberta before LLM reply | Crisis classifier (exists) | M | MVP |
+| 2 | Crisis-gated chat [E] | P | Every message screened by sentinet/suicidality before LLM reply | Crisis classifier (exists) | M | MVP |
 | 3 | Multilingual chat [E: detection] | P | India: Hindi/Tamil/Telugu etc.; access + equity | indic-bert lang detect + multilingual LLM | M | V1 |
 | 4 | Output-side safety guardrail | P | Blocks medication dosing advice, harmful content from LLM replies | Output classifier pass | M | MVP |
 | 5 | CBT/behavioral-activation guided flows | P | Evidence-based micro-interventions, not just empathy | LLM + structured protocol state | M | V1 |
@@ -278,7 +278,7 @@ Legend — **User:** P = patient, C = clinician, F = family/caregiver, A = admin
 
 | # | Feature | User | Benefit | AI/ML | Cx | Tier |
 |---|---|---|---|---|---|---|
-| 55 | Crisis detection on journal+chat [E] | P,C | Every text scanned by mental-roberta | Classifier (exists) | H | MVP |
+| 55 | Crisis detection on journal+chat [E] | P,C | Every text scanned by sentinet/suicidality | Classifier (exists) | H | MVP |
 | 56 | In-app crisis screen (helplines: Tele-MANAS 14416, iCall; safety plan; emergency contact) | P | Detection without response is a liability, not a feature | — | L | **MVP** |
 | 57 | Emergency contact notification (consent-gated) | F | Family loop for severe events | — | L | V1 |
 | 58 | Escalation cron: crisis + loss-of-follow-up [E] | C | 15-min sweep for unacknowledged deterioration | Exists | M | MVP |
@@ -638,7 +638,7 @@ The last two lines are the part most teams never build: **the system generates i
 
 | Model | Status | Inputs → Output | Labels / dataset | Metrics | Deploy · Monitor · Retrain |
 |---|---|---|---|---|---|
-| Crisis detection | **E** (`mental/mental-roberta-base`) | journal/chat text → crisis prob | Public (e.g., r/SuicideWatch-derived corpora) + curated; fine-tune on flagged+adjudicated in-house data | **Recall first** (≥0.95), then precision; calibration; borderline band → human queue (#60) | Local HF on ai-service · log score dist + human-review overturn rate · fine-tune quarterly, threshold-tune monthly |
+| Crisis detection | **E** (`sentinet/suicidality`) | journal/chat text → crisis prob | Public (e.g., r/SuicideWatch-derived corpora) + curated; fine-tune on flagged+adjudicated in-house data | **Recall first** (≥0.95), then precision; calibration; borderline band → human queue (#60) | Local HF on ai-service · log score dist + human-review overturn rate · fine-tune quarterly, threshold-tune monthly |
 | Sentiment | **E** (indic-bert) | text → polarity | Public Indic sentiment sets | Macro-F1 per language | Local HF · per-language drift · semi-annual |
 | Emotion | **E** (distilroberta) | text → 7-emotion dist | GoEmotions-class public | Top-2 accuracy | Local HF · dist drift · annual |
 | Risk fusion | **E** (XGBoost, 15 feats + SHAP) | mood, sentiment, divergence, cycle vulnerability, anomaly score, biometric deltas, engagement recency… → risk 0–1 + level | **Today: synthetic. Path:** label = PHQ-9 ≥ threshold or clinician-confirmed deterioration within 14 days of score | AUROC, AUPRC, **calibration (Brier)**, sensitivity at fixed alert budget (alerts/clinician/day is the real constraint) | pkl now → MLflow registry · feature drift + alert precision (ack-and-action rate as weak label) · monthly once real labels flow |
@@ -766,7 +766,7 @@ Model governance: every risk score stored with `model_version` (schema §10.2 pr
 7. *"Ethical risk: algorithmic triage could deprioritize someone who then dies."* — The system only *adds* attention, never gates care; low risk score ≠ no care, it means standard cadence. Escalation cron guarantees no patient silently exits the system — that's the loss-to-follow-up sweep's real purpose.
 8. *"Bias?"* — Fairness slices per gender/language/device in the eval pipeline (§15); indic-bert reduces English-first bias; cycle model makes women's health a first-class signal instead of a confounder.
 
-**Weaknesses to fix before demo day (priority order):** crisis screen (#56) · LLM output guardrail (#4) · PHQ-9 (#9) · AI summary (#48) · SHAP panel (#50) · README model prose (stale "Gemma/Ollama" — judges read READMEs) · rehearsed answer to question 1.
+**Weaknesses to fix before demo day (priority order):** crisis screen (#56) · LLM output guardrail (#4) · PHQ-9 (#9) · AI summary (#48) · SHAP panel (#50) · README model prose (stale "the NVIDIA model chain/Ollama" — judges read READMEs) · rehearsed answer to question 1.
 
 ### Presentation strategy
 

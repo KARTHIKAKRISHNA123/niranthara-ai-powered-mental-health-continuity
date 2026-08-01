@@ -20,9 +20,12 @@ const { ai } = require('../utils/aiClient')
 // POST /api/passive/biometric-sync
 // Receives Health Connect biometrics from mobile, stores them, re-runs XGBoost.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => {
-  try {
-    const uid = req.user.uid
+// The scoring pipeline is extracted from the route handler so other ingest
+// paths — currently the Google Health API cloud sync — run through exactly the
+// same deviation maths, alert gate and XGBoost re-score rather than a parallel
+// copy that could drift.
+async function processBiometricSync(uid, payload) {
+  {
     const {
       heartRate,
       restingHeartRate,
@@ -32,7 +35,7 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       windowHours = 24,
       source       = 'health_connect',
       fetchedAt,
-    } = req.body
+    } = payload
 
     // ── 1. Load user baseline ─────────────────────────────────────────────────
     const userDoc  = await db.collection('users').doc(uid).get()
@@ -185,7 +188,7 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       console.warn('[biometricSync] XGBoost re-score failed (non-fatal):', aiErr.message)
     }
 
-    res.status(201).json({
+    return {
       message:                  'Biometrics synced',
       logId:                    logRef.id,
       physiologicalStressScore: Math.round(physiologicalStressScore * 100) / 100,
@@ -194,7 +197,14 @@ router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => 
       riskScore:                riskData?.riskScore || null,
       riskLevel:                riskData?.riskLevel || null,
       alertCreated,
-    })
+    }
+  }
+}
+
+router.post('/biometric-sync', generalLimiter, verifyToken, async (req, res) => {
+  try {
+    const result = await processBiometricSync(req.user.uid, req.body)
+    res.status(201).json(result)
   } catch (error) {
     console.error('[biometricSync] Error:', error.message)
     res.status(500).json({ error: error.message })
@@ -219,4 +229,7 @@ router.get('/biometrics/:uid', generalLimiter, verifyToken, requireSelfOrAssigne
   }
 })
 
+// Express mounts the default export; processBiometricSync is attached so the
+// Google Health cloud sync can reuse the pipeline without an HTTP round-trip.
 module.exports = router
+module.exports.processBiometricSync = processBiometricSync

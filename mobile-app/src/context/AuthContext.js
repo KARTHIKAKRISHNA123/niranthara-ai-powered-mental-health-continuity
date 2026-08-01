@@ -66,11 +66,13 @@ export const AuthProvider = ({ children }) => {
     
     // 3. Register user in Backend (creates Firestore doc)
     try {
+      // No persona or gender is assumed here — onboarding asks. Defaulting
+      // every new account to 'women' put cycle features in front of users the
+      // product does not apply them to.
       await api.post('/auth/register', {
         name: name,
         email: email,
         language: 'en',
-        personaType: 'women', // Default; Onboarding screen lets user confirm
       });
     } catch (e) {
       console.warn("Backend registration failed (might already exist):", e);

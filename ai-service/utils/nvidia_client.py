@@ -1,4 +1,4 @@
-# utils/gemma_client.py — Minimax-m2.7 via NVIDIA API (Swapped from local Gemma)
+# utils/nvidia_client.py — NVIDIA-hosted model chain (replaced local Ollama/Gemma)
 import os
 import re
 import random

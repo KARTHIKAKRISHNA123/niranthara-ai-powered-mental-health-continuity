@@ -167,7 +167,7 @@ def train(dataset_path="data/phq9_dataset.csv", use_cross_validation=True):
     CPU optimization:
       - n_jobs=6     → matches P-core count on i5-13450HX
       - tree_method='hist' → fastest CPU algorithm
-      - device='cpu'  → keeps GPU free for Ollama/Gemma 4B
+      - device='cpu'  → keeps GPU free for the local NLP pipelines
 
     Validation:
       - 5-fold stratified cross-validation (when enabled)
@@ -223,7 +223,7 @@ def train(dataset_path="data/phq9_dataset.csv", use_cross_validation=True):
         # i5-13450HX optimization
         n_jobs=P_CORE_COUNT,       # Pin to 6 P-cores, E-cores free for backend/Chrome
         tree_method="hist",        # Fastest CPU algorithm (histogram-based)
-        device="cpu",              # Keep GPU free for Ollama/Gemma 4B
+        device="cpu",              # Keep GPU free for the local NLP pipelines
 
         # Training config
         eval_metric="mlogloss",

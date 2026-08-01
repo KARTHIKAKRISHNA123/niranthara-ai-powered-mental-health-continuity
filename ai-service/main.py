@@ -55,8 +55,9 @@ async def warm_models():
 
     def _warm():
         try:
-            chat.get_crisis_pipe()("warm-up")
-            print("[startup] crisis classifier warmed")
+            from utils.crisis_classifier import warm_up, CRISIS_MODEL
+            warm_up()
+            print(f"[startup] crisis classifier warmed: {CRISIS_MODEL}")
         except Exception as e:
             print(f"[startup] warm-up failed (non-fatal): {e}")
 
@@ -69,7 +70,7 @@ def root():
         "app": "Niranthara AI Service v2.0",
         "architecture": "ML-first — zero hardcoding — zero keyword matching",
         "models": {
-            "crisis":    "mental/mental-roberta-base",
+            "crisis":    os.getenv("CRISIS_MODEL", "sentinet/suicidality"),
             "sentiment": "ai4bharat/indic-bert",
             "emotion":   "j-hartmann/emotion-english-distilroberta-base",
             "chat":      "NVIDIA Minimax cloud API",

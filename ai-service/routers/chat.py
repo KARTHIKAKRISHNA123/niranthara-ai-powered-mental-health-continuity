@@ -1,4 +1,4 @@
-# routers/chat.py — Full NLP pipeline + Gemma 4B context-aware response
+# routers/chat.py — Full NLP pipeline + NVIDIA model chain, context-aware response
 
 import time
 from fastapi import APIRouter
@@ -7,20 +7,9 @@ from typing import Optional
 from utils.nvidia_client import generate_response, generate_clinical_summary
 from utils.sarvam_client import transcribe_audio, is_mocked
 from utils.language_detector import detect_language
-from transformers import pipeline
-import torch
+from utils.crisis_classifier import crisis_probability
 
 router = APIRouter()
-
-# Load crisis classifier for chat (shared with crisis router — lazy load here)
-_crisis_pipe = None
-
-def get_crisis_pipe():
-    global _crisis_pipe
-    if _crisis_pipe is None:
-        _crisis_pipe = pipeline("text-classification", model="mental/mental-roberta-base",
-                                 device=0 if torch.cuda.is_available() else -1)
-    return _crisis_pipe
 
 
 class ChatTurn(BaseModel):
@@ -49,15 +38,8 @@ class TranscribeRequest(BaseModel):
 async def chat(request: ChatRequest):
     start_ms = int(time.time() * 1000)
 
-    # Quick crisis check on chat message
-    try:
-        pipe   = get_crisis_pipe()
-        result = pipe(request.message)[0]
-        is_crisis_label = result["label"].lower() == "crisis"
-        raw_score       = result["score"]
-        crisis_prob     = raw_score if is_crisis_label else (1 - raw_score)
-    except Exception:
-        crisis_prob = 0.0
+    # Crisis check on the chat message — same classifier as /api/crisis/detect
+    crisis_prob = crisis_probability(request.message)
 
     # Detect language for response style
     detected_lang = detect_language(request.message)

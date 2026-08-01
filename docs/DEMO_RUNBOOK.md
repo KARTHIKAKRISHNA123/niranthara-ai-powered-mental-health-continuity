@@ -26,7 +26,7 @@ uv venv .venv --python 3.11
 uv pip install -r requirements.txt --python .venv\Scripts\python.exe
 $env:PYTHONUTF8='1'; .\.venv\Scripts\python.exe download_models.py
 ```
-Downloads HuggingFace models (mental-roberta, indic-bert, distilroberta — several GB) and retrains the XGBoost risk model. **Do this on hotel/home WiFi, never on demo day.** (`python`/`py` are broken shims on this machine — always go through `uv` or `.venv\Scripts\python.exe`.)
+Downloads HuggingFace models (sentinet/suicidality, indic-bert, distilroberta — several GB) and retrains the XGBoost risk model. **Do this on hotel/home WiFi, never on demo day.** (`python`/`py` are broken shims on this machine — always go through `uv` or `.venv\Scripts\python.exe`.)
 
 **Seed the demo patient** (after you have signed up one mobile user and one clinician):
 ```powershell

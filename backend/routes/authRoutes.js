@@ -14,11 +14,11 @@ router.post('/register', authLimiter, verifyToken, async (req, res) => {
   try {
     const uid  = req.user.uid
     const {
-      name, age, language, personaType,
+      name, age, language, personaType, gender, tracksCycle,
       conditions, therapistContact, emergencyContact
     } = req.body
 
-    const validation = validateProfileUpdate({ age, language, personaType })
+    const validation = validateProfileUpdate({ age, language, personaType, gender, tracksCycle })
     if (!validation.valid) return res.status(400).json({ error: validation.error })
 
     const existing = await db.collection('users').doc(uid).get()
@@ -32,6 +32,11 @@ router.post('/register', authLimiter, verifyToken, async (req, res) => {
       age:                age               || null,
       language:           language          || 'en',
       personaType:        personaType       || 'general',
+      // Cycle features are opt-in and apply to everyone equally otherwise.
+      // Absent until onboarding sets them — never inferred from a name.
+      gender:             gender            || null,
+      tracksCycle:        typeof tracksCycle === 'boolean' ? tracksCycle : false,
+      onboardingComplete: false,
       conditions:         conditions        || [],
       therapistContact:   therapistContact  || '',
       emergencyContact:   emergencyContact  || '',
@@ -94,13 +99,13 @@ router.put('/update-profile', verifyToken, async (req, res) => {
   try {
     const uid = req.user.uid
     const {
-      name, age, language, personaType,
+      name, age, language, personaType, gender, tracksCycle,
       conditions, therapistContact, emergencyContact,
       caregiverContact, permissions, accessibilityMode, profileComplete,
       lastPeriodDate, supervisionMode, caseConferenceOptIn, accessibilityOptions
     } = req.body
 
-    const validation = validateProfileUpdate({ age, language, personaType })
+    const validation = validateProfileUpdate({ age, language, personaType, gender, tracksCycle })
     if (!validation.valid) return res.status(400).json({ error: validation.error })
 
     const update = { updatedAt: new Date().toISOString() }
@@ -108,6 +113,8 @@ router.put('/update-profile', verifyToken, async (req, res) => {
     if (age                !== undefined) update.age                = age
     if (language           !== undefined) update.language           = language
     if (personaType        !== undefined) update.personaType        = personaType
+    if (gender             !== undefined) update.gender             = gender
+    if (tracksCycle        !== undefined) update.tracksCycle        = tracksCycle
     if (conditions         !== undefined) update.conditions         = conditions
     if (therapistContact   !== undefined) update.therapistContact   = therapistContact
     if (emergencyContact   !== undefined) update.emergencyContact   = emergencyContact
@@ -226,7 +233,13 @@ router.get('/export-data', verifyToken, async (req, res) => {
 router.patch('/update-profile', verifyToken, async (req, res) => {
   try {
     const uid     = req.user.uid
-    const allowed = ['persona', 'onboardingComplete', 'language', 'name', 'age']
+    // 'persona' was written here while every reader (dashboard, risk features)
+    // looked at 'personaType' — the onboarding choice never reached anything.
+    // personaType is now the only spelling.
+    const allowed = [
+      'personaType', 'gender', 'tracksCycle',
+      'onboardingComplete', 'language', 'name', 'age'
+    ]
     const updates = {}
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key]
@@ -234,6 +247,10 @@ router.patch('/update-profile', verifyToken, async (req, res) => {
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' })
     }
+
+    const validation = validateProfileUpdate(updates)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+
     updates.updatedAt = new Date().toISOString()
     await db.collection('users').doc(uid).update(updates)
     const updated = await db.collection('users').doc(uid).get()

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
-import { postData } from '../utils/api';
+import { postData, TIMEOUTS } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const MOOD_LABELS = { 1: 'Very Low', 2: 'Low', 3: 'Okay', 4: 'Good', 5: 'Great' };
@@ -45,7 +45,12 @@ export default function JournalScreen({ navigation }) {
       offlineSyncId: Date.now().toString(),
     };
 
-    const result = await postData('/mood/log', payload, 'moodLogs');
+    // The server-side pipeline (encrypt → 3 NLP calls → LSTM → XGBoost) needs
+    // far longer than the global 8s default; without this the request timed out
+    // and was silently queued offline while the user was told it had saved.
+    const result = await postData('/mood/log', payload, 'moodLogs', {
+      timeout: TIMEOUTS.moodLog,
+    });
     setLoading(false);
 
     if (result.success) {
@@ -65,7 +70,12 @@ export default function JournalScreen({ navigation }) {
       // Navigate to Home tab — not goBack() which fails on tab screens
       navigation.navigate('Home');
     } else {
-      Alert.alert('Error', 'Could not save your check-in. Please try again.');
+      Alert.alert(
+        'Could not save',
+        result.status
+          ? `The server rejected your check-in (${result.status}). ${result.error || ''}`.trim()
+          : `Could not reach Niranthara. ${result.error || 'Please try again.'}`,
+      );
     }
   };
 

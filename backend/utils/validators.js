@@ -87,9 +87,12 @@ const validateChatMessage = (body) => {
  * Validate user profile update body
  */
 const validateProfileUpdate = (body) => {
-  const { age, language, personaType } = body
+  const { age, language, personaType, gender, tracksCycle } = body
   const VALID_LANGUAGES = ['ta', 'en']
-  const VALID_PERSONAS  = ['women', 'elderly', 'disabled', 'general']
+  // 'women' and 'disabled' are retained so accounts seeded before the
+  // gender/persona split keep validating.
+  const VALID_PERSONAS  = ['general', 'student', 'elderly', 'caregiver', 'women', 'disabled']
+  const VALID_GENDERS   = ['female', 'male', 'non_binary', 'prefer_not_to_say']
 
   if (age !== undefined && (Number(age) < 10 || Number(age) > 120))
     return { valid: false, error: 'age must be 10–120' }
@@ -97,6 +100,10 @@ const validateProfileUpdate = (body) => {
     return { valid: false, error: `language must be one of: ${VALID_LANGUAGES.join(', ')}` }
   if (personaType && !VALID_PERSONAS.includes(personaType))
     return { valid: false, error: `personaType must be one of: ${VALID_PERSONAS.join(', ')}` }
+  if (gender && !VALID_GENDERS.includes(gender))
+    return { valid: false, error: `gender must be one of: ${VALID_GENDERS.join(', ')}` }
+  if (tracksCycle !== undefined && typeof tracksCycle !== 'boolean')
+    return { valid: false, error: 'tracksCycle must be a boolean' }
   return { valid: true }
 }
 

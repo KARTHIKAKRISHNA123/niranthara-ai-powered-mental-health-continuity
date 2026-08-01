@@ -97,9 +97,16 @@ def predict_vulnerability(uid: str, last_period_date: str, period_history: List[
         predicted_len = avg_cycle or 28.0
         vuln_start, vuln_end = 0.75, 0.95
 
-    last_period  = datetime.fromisoformat(last_period_date.replace("Z", ""))
-    current_day  = (datetime.now() - last_period).days + 1
-    progress     = min(current_day / predicted_len, 1.1)
+    last_period = datetime.fromisoformat(last_period_date.replace("Z", ""))
+    days_since  = (datetime.now() - last_period).days + 1
+
+    # A period that is late must not spin the ring past its own length. Report
+    # the true elapsed days separately and cap the displayed day at the cycle
+    # length so "Day 41 of 28" can never render.
+    cycle_len   = int(round(predicted_len))
+    is_overdue  = days_since > cycle_len
+    current_day = min(days_since, cycle_len)
+    progress    = min(days_since / predicted_len, 1.1)
 
     # Smooth vulnerability curve
     if progress < 0.5:
@@ -114,12 +121,14 @@ def predict_vulnerability(uid: str, last_period_date: str, period_history: List[
 
     return {
         "currentDay":            current_day,
-        "predictedCycleLength":  round(predicted_len),
+        "daysSinceLastPeriod":   days_since,
+        "isOverdue":             is_overdue,
+        "predictedCycleLength":  cycle_len,
         "vulnerabilityScore":    round(vuln_score, 3),
         "isHighRisk":            vuln_score > 0.65,
         "currentPhase":          _phase_from_progress(progress),
         "modelType":             model_type,
-        "predictedNextPeriod":   (last_period + timedelta(days=int(predicted_len))).isoformat()
+        "predictedNextPeriod":   (last_period + timedelta(days=cycle_len)).isoformat()
     }
 
 
@@ -141,14 +150,17 @@ async def predict_cycle(
     last_period: Optional[str] = Query(None),
     avg_cycle:   Optional[float] = Query(28.0)
 ):
+    # Without a real last-period date there is no cycle day to compute. The
+    # previous branch invented "today minus 14 days" whenever a trained model
+    # existed, which pinned such users to day 14 forever and disagreed with the
+    # value stored in Firestore. Absent data is reported as absent.
     if not last_period:
-        # Try to infer from stored model
-        model_path = f"models/user_cycles/{uid}.pkl"
-        if not os.path.exists(model_path):
-            return {"currentDay": 0, "vulnerabilityScore": 0.0, "currentPhase": "unknown", "modelType": "no_data", "message": "No period data logged yet"}
-        with open(model_path, "rb") as f:
-            state = pickle.load(f)
-        # Use today minus estimated current day
-        last_period = (datetime.now() - timedelta(days=14)).isoformat()
+        return {
+            "currentDay": 0,
+            "vulnerabilityScore": 0.0,
+            "currentPhase": "unknown",
+            "modelType": "no_data",
+            "message": "No period start date supplied — cannot compute cycle day",
+        }
 
     return predict_vulnerability(uid, last_period, avg_cycle=avg_cycle or 28.0)

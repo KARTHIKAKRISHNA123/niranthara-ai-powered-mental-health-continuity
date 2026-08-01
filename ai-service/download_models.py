@@ -9,8 +9,12 @@ print("=" * 50)
 print("Niranthara — Model Download Script")
 print("=" * 50)
 
-print("\n[1/3] Downloading crisis detector (mental/mental-roberta-base)...")
-pipeline("text-classification", model="mental/mental-roberta-base")
+# sentinet/suicidality is an ELECTRA classifier fine-tuned for suicidality.
+# Do NOT revert to mental/mental-roberta-base: it has no classification head,
+# so transformers initialises one at random and every input scores ~0.53.
+CRISIS_MODEL = os.getenv("CRISIS_MODEL", "sentinet/suicidality")
+print(f"\n[1/3] Downloading crisis detector ({CRISIS_MODEL})...")
+pipeline("text-classification", model=CRISIS_MODEL)
 print("✓ Crisis model ready")
 
 print("\n[2/3] Downloading emotion detector (j-hartmann/emotion-english-distilroberta-base)...")

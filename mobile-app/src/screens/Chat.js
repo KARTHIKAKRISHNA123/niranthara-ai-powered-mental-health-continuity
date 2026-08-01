@@ -201,7 +201,7 @@ export default function ChatScreen({ navigation }) {
         modelUsed: result.data.modelUsed,
         isCrisis:  result.data.isCrisis,
       });
-      // Crisis detected by mental-roberta: open the full support screen —
+      // Crisis detected by the suicidality classifier: open the full support screen —
       // helplines, grounding, breathing — not a dismissable popup.
       if (result.data.isCrisis) {
         navigation.navigate('CrisisSupport', { fromDetection: true });

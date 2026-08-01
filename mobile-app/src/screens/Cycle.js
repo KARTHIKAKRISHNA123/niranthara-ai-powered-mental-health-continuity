@@ -5,14 +5,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, ScrollView, RefreshControl
+  ActivityIndicator, ScrollView, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
-import { api, postData } from '../utils/api';
+import { api } from '../utils/api';
 import { auth } from '../utils/firebase';
+import PeriodLogSheet from './PeriodLogSheet';
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 const PHASES = [
@@ -243,22 +244,32 @@ function VulnBar({ score = 0 }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CycleScreen() {
   const [cycleData,  setCycleData]  = useState(null);
+  const [loadError,  setLoadError]  = useState('');
   const [loading,    setLoading]    = useState(true);
-  const [logging,    setLogging]    = useState(false);
+  const [sheetOpen,  setSheetOpen]  = useState(false);
+  const [dayLogs,    setDayLogs]    = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchCycleData = useCallback(async () => {
     try {
       if (!auth.currentUser) return;
-      const res = await api.get(`/cycle/today/${auth.currentUser.uid}`);
-      setCycleData(res.data);
-    } catch {
-      setCycleData({
-        currentDay: 14,
-        cycleLength: 28,
-        vulnerabilityScore: 0.3,
-        currentPhase: 'ovulatory',
-      });
+      const uid = auth.currentUser.uid;
+      const [todayRes, logsRes] = await Promise.all([
+        api.get(`/cycle/today/${uid}`, { timeout: 20000 }),
+        api.get(`/cycle/day-logs/${uid}?days=60`).catch(() => ({ data: { logs: [] } })),
+      ]);
+      setCycleData(todayRes.data);
+      setDayLogs(logsRes.data?.logs || []);
+      setLoadError('');
+    } catch (e) {
+      // No invented fallback. The old catch substituted a hardcoded day 14 /
+      // 0.3 vulnerability, which is why this screen and Home showed different
+      // days whenever the request failed — Home defaults to day 1.
+      setLoadError(
+        e.response
+          ? `Server error ${e.response.status} loading your cycle.`
+          : 'Could not reach Niranthara. Pull to retry.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -269,21 +280,11 @@ export default function CycleScreen() {
 
   const onRefresh = () => { setRefreshing(true); fetchCycleData(); };
 
-  const logPeriodStart = async () => {
-    setLogging(true);
-    const result = await postData('/cycle/log-period', { periodStart: new Date().toISOString() }, 'cycleLogs');
-    setLogging(false);
-    if (result.success || !result.offline) {
-      Alert.alert('Period Logged', 'Your period has been recorded. Your ML predictions will be updated.');
-      fetchCycleData();
-    } else {
-      Alert.alert('Saved Offline', 'Period will sync when you are back online.');
-    }
-  };
-
-  const currentDay      = cycleData?.currentDay  || 1;
-  const cycleLength     = cycleData?.cycleLength  || 28;
+  const hasData         = cycleData?.hasData !== false && (cycleData?.currentDay || 0) > 0;
+  const currentDay      = cycleData?.currentDay  || 0;
+  const cycleLength     = cycleData?.cycleLength || 28;
   const vulnScore       = cycleData?.vulnerabilityScore || 0;
+  const isOverdue       = !!cycleData?.isOverdue;
   const currentPhaseId  = getPhaseId(currentDay, cycleLength);
   const currentPhaseObj = PHASES.find(p => p.id === currentPhaseId) || PHASES[3];
 
@@ -300,8 +301,37 @@ export default function CycleScreen() {
         <Text style={styles.title}>Cycle Tracking</Text>
         <Text style={styles.subtitle}>Personalized LSTM predictions · Pull to refresh</Text>
 
+        {loadError ? (
+          <View style={styles.errorCard}>
+            <Feather name="wifi-off" size={16} color={COLORS.alert} />
+            <Text style={styles.errorText}>{loadError}</Text>
+          </View>
+        ) : null}
+
         {loading ? (
           <ActivityIndicator style={{ marginTop: 60 }} color={COLORS.rose} size="large" />
+        ) : !hasData ? (
+          /* No period logged yet — an honest empty state instead of a ring
+             drawn around invented numbers. */
+          <View style={styles.emptyWrap}>
+            <View style={styles.emptyIcon}>
+              <Feather name="moon" size={30} color={COLORS.rose} />
+            </View>
+            <Text style={styles.emptyTitle}>No cycle data yet</Text>
+            <Text style={styles.emptyBody}>
+              Log the first day of your period and Niranthara starts learning
+              your rhythm. After three cycles it trains a model that is yours
+              alone.
+            </Text>
+            <TouchableOpacity
+              style={styles.logBtn}
+              onPress={() => setSheetOpen(true)}
+              accessibilityLabel="Log your period"
+            >
+              <Feather name="droplet" size={18} color={COLORS.warmWhite} />
+              <Text style={styles.logBtnText}>Log my period</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <>
             {/* ── Ring ── */}
@@ -312,6 +342,15 @@ export default function CycleScreen() {
                 size={272}
               />
             </View>
+
+            {isOverdue && (
+              <View style={styles.overdueBadge}>
+                <Feather name="clock" size={13} color={COLORS.warning} />
+                <Text style={styles.overdueText}>
+                  {cycleData.daysSinceLastPeriod - cycleLength} days past your predicted date
+                </Text>
+              </View>
+            )}
 
             {/* ── Current Phase card ── */}
             <View style={[styles.phaseCard, { backgroundColor: currentPhaseObj.bg }]}>
@@ -354,25 +393,52 @@ export default function CycleScreen() {
               </Text>
             </View>
 
-            {/* ── Log period button ── */}
+            {/* ── Recently logged days ── */}
+            {dayLogs.length > 0 && (
+              <View style={styles.logsCard}>
+                <Text style={styles.logsTitle}>Recently logged</Text>
+                {dayLogs.slice(0, 5).map(log => (
+                  <View key={log.id} style={styles.logRow}>
+                    <View style={styles.logDayBadge}>
+                      <Text style={styles.logDayText}>
+                        {log.periodDay ? `D${log.periodDay}` : '·'}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.logDate}>
+                        {new Date(log.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        {log.flow ? `  ·  ${log.flow}` : ''}
+                      </Text>
+                      {log.symptoms?.length > 0 && (
+                        <Text style={styles.logSymptoms} numberOfLines={1}>
+                          {log.symptoms.map(s => s.replace(/_/g, ' ')).join(', ')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* ── Log period button — opens the full day/flow/symptom sheet ── */}
             <TouchableOpacity
               style={styles.logBtn}
-              onPress={logPeriodStart}
-              disabled={logging}
-              accessibilityLabel="Log period start today"
+              onPress={() => setSheetOpen(true)}
+              accessibilityLabel="Log a period day with flow and symptoms"
             >
-              {logging ? (
-                <ActivityIndicator color={COLORS.warmWhite} />
-              ) : (
-                <>
-                  <Feather name="droplet" size={18} color={COLORS.warmWhite} />
-                  <Text style={styles.logBtnText}>Log Period Start Today</Text>
-                </>
-              )}
+              <Feather name="droplet" size={18} color={COLORS.warmWhite} />
+              <Text style={styles.logBtnText}>Log period day</Text>
             </TouchableOpacity>
           </>
         )}
       </ScrollView>
+
+      <PeriodLogSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onSaved={() => fetchCycleData()}
+        defaultDay={hasData && currentDay <= 8 ? currentDay : 1}
+      />
     </SafeAreaView>
   );
 }
@@ -578,6 +644,50 @@ const styles = StyleSheet.create({
     color:      COLORS.lavenderDark,
     lineHeight: 18,
   },
+
+  // Error banner
+  errorCard: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: '#FDEAE6', borderRadius: RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+  },
+  errorText: { flex: 1, fontFamily: FONTS.body, fontSize: 12.5, color: '#9B2A15', lineHeight: 18 },
+
+  // Empty state
+  emptyWrap: { width: '100%', alignItems: 'center', paddingTop: SPACING.xxl },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.roseLight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg,
+  },
+  emptyTitle: { fontFamily: FONTS.display, fontSize: 26, color: COLORS.charcoal, marginBottom: SPACING.sm },
+  emptyBody: {
+    fontFamily: FONTS.body, fontSize: 13.5, color: COLORS.warmGray,
+    textAlign: 'center', lineHeight: 21, marginBottom: SPACING.xl, paddingHorizontal: SPACING.md,
+  },
+
+  // Overdue
+  overdueBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FDF3E3', borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.md, paddingVertical: 7, marginBottom: SPACING.lg,
+  },
+  overdueText: { fontFamily: FONTS.medium, fontSize: 12, color: '#8B5E1A' },
+
+  // Recent day logs
+  logsCard: {
+    width: '100%', backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md,
+    padding: SPACING.lg, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  logsTitle: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal, marginBottom: SPACING.md },
+  logRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.sm },
+  logDayBadge: {
+    width: 34, height: 34, borderRadius: RADIUS.sm, backgroundColor: COLORS.roseLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  logDayText:  { fontFamily: FONTS.medium, fontSize: 12, color: COLORS.roseDark },
+  logDate:     { fontFamily: FONTS.body, fontSize: 13, color: COLORS.charcoal, textTransform: 'capitalize' },
+  logSymptoms: { fontFamily: FONTS.body, fontSize: 11.5, color: COLORS.warmGray, marginTop: 1, textTransform: 'capitalize' },
 
   // Log button
   logBtn: {

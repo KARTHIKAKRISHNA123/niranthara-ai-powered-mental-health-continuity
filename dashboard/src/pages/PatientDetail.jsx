@@ -1,5 +1,5 @@
 // dashboard/src/pages/PatientDetail.jsx
-// Full NLP signals + 30-day charts + SHAP factors + Gemma narrative + PDF export
+// Full NLP signals + 30-day charts + SHAP factors + LLM narrative + PDF export
 // RTCFR: no emojis, no prompt()/alert(), Flag modal via React state, icon buttons
 
 import { useState, useEffect } from 'react'
@@ -224,6 +224,7 @@ export default function PatientDetail() {
   const [moodLogs,  setMoodLogs]  = useState([])
   const [assessments, setAssessments] = useState([])
   const [summary,   setSummary]   = useState('')
+  const [summaryModel, setSummaryModel] = useState('')
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [loading,   setLoading]   = useState(true)
   const [flagging,  setFlagging]  = useState(false)
@@ -274,10 +275,19 @@ export default function PatientDetail() {
       const r = await fetch(`${API}/api/clinician/summary/${uid}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
+      if (!r.ok) {
+        setSummary(`Summary request rejected (HTTP ${r.status}). ${r.status === 403 ? 'This patient is not assigned to you.' : 'Check the backend logs.'}`)
+        return
+      }
       const d = await r.json()
       setSummary(d.summary || '')
+      setSummaryModel(d.modelUsed || '')
     } catch {
-      setSummary('Summary generation failed — AI service may be offline')
+      // A fetch() that throws means the BACKEND was unreachable — the AI
+      // service is a hop further in and cannot be the thing we just failed to
+      // reach. The old copy blamed the AI service and sent debugging the wrong
+      // way while the actual cause was `node index.js` not running.
+      setSummary(`Could not reach the Niranthara backend at ${API}. Start it with "node index.js" in backend/, then try again.`)
     } finally {
       setSummaryLoading(false)
     }
@@ -302,25 +312,199 @@ export default function PatientDetail() {
     }
   }
 
+  // ── Clinical report ─────────────────────────────────────────────────────────
+  // The previous export wrote at fixed Y offsets (75, 85, 110, 120+i*10), so a
+  // summary longer than ~two lines ran straight through the risk-factor block
+  // and off the page. This lays out with a running cursor, paginates, and
+  // follows the app palette from Build_Guide §40.
   const exportPDF = () => {
-    const pdf = new jsPDF()
-    pdf.setFont('helvetica')
-    pdf.setFontSize(20)
-    pdf.text('Niranthara — Patient Report', 20, 25)
-    pdf.setFontSize(12)
-    pdf.text(`Patient: ${patient?.name || uid}`, 20, 40)
-    pdf.text(`Risk Level: ${patient?.riskLevel || 'unknown'} (${((patient?.riskScore || 0) * 100).toFixed(0)}%)`, 20, 50)
-    pdf.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 60)
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
+    const PAGE_W = 210, PAGE_H = 297
+    const M = 18                      // margin
+    const W = PAGE_W - M * 2          // content width
+    const INK    = [44, 40, 38]       // charcoal
+    const MUTED  = [138, 128, 118]    // warm gray
+    const ROSE   = [201, 123, 132]
+    const ROSE_D = [139, 74, 82]
+    const CREAM  = [251, 247, 242]
+    const RISK_RGB = {
+      low:      [123, 166, 138],
+      moderate: [240, 168, 48],
+      high:     [232, 99, 74],
+      crisis:   [155, 42, 21],
+    }
+
+    let y = 0
+    let page = 1
+
+    const need = (h) => {
+      if (y + h > PAGE_H - 22) { footer(); pdf.addPage(); page += 1; y = M }
+    }
+    const footer = () => {
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(...MUTED)
+      pdf.text(
+        'Niranthara — clinical decision support. Generated from structured signals; not a diagnosis. Journal and chat text are never included.',
+        M, PAGE_H - 12, { maxWidth: W }
+      )
+      pdf.text(`Page ${page}`, PAGE_W - M, PAGE_H - 12, { align: 'right' })
+    }
+    const heading = (text) => {
+      need(14)
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(...ROSE_D)
+      pdf.text(text.toUpperCase(), M, y)
+      y += 2
+      pdf.setDrawColor(...ROSE); pdf.setLineWidth(0.4)
+      pdf.line(M, y, M + W, y)
+      y += 6
+    }
+    const body = (text, size = 9.5, color = INK) => {
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(size); pdf.setTextColor(...color)
+      const lines = pdf.splitTextToSize(text, W)
+      lines.forEach((ln) => { need(6); pdf.text(ln, M, y); y += size * 0.5 + 1.2 })
+    }
+
+    // ── Header band ──
+    pdf.setFillColor(...ROSE_D); pdf.rect(0, 0, PAGE_W, 34, 'F')
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(19); pdf.setTextColor(255, 255, 255)
+    pdf.text('Niranthara', M, 15)
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(242, 217, 220)
+    pdf.text('Continuity of Care — Patient Report', M, 22)
+    pdf.setFontSize(8)
+    pdf.text(
+      `Generated ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`,
+      PAGE_W - M, 22, { align: 'right' }
+    )
+    y = 46
+
+    // ── Patient identity + risk chip ──
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(16); pdf.setTextColor(...INK)
+    pdf.text(patient?.name || uid, M, y)
+
+    const lvl = (patient?.riskLevel || 'low').toLowerCase()
+    const rgb = RISK_RGB[lvl] || RISK_RGB.low
+    const chip = `${lvl.toUpperCase()}  ${((patient?.riskScore || 0) * 100).toFixed(0)}%`
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9)
+    const chipW = pdf.getTextWidth(chip) + 10
+    pdf.setFillColor(...rgb)
+    pdf.roundedRect(PAGE_W - M - chipW, y - 6, chipW, 9, 2, 2, 'F')
+    pdf.setTextColor(255, 255, 255)
+    pdf.text(chip, PAGE_W - M - chipW / 2, y, { align: 'center' })
+    y += 7
+
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(...MUTED)
+    const meta = [
+      patient?.age ? `${patient.age}y` : null,
+      patient?.personaType ? `profile: ${patient.personaType}` : null,
+      patient?.conditions?.length ? patient.conditions.join(', ') : null,
+      `XGBoost risk score · ${moodLogs.length} check-ins in 30 days`,
+    ].filter(Boolean).join('   ·   ')
+    pdf.text(meta, M, y)
+    y += 12
+
+    // ── Key metrics strip ──
+    const last = moodLogs[moodLogs.length - 1]
+    const avg = (f) => moodLogs.length
+      ? (moodLogs.reduce((s, l) => s + (f(l) || 0), 0) / moodLogs.length)
+      : null
+    const tiles = [
+      { k: 'Avg mood',   v: avg(l => l.moodScore)  != null ? `${avg(l => l.moodScore).toFixed(1)}/5` : '—' },
+      { k: 'Avg sleep',  v: avg(l => l.sleepHours) != null ? `${avg(l => l.sleepHours).toFixed(1)}h` : '—' },
+      { k: 'PHQ-9',      v: phq9 ? `${phq9.score}/${phq9.maxScore}` : '—' },
+      { k: 'GAD-7',      v: gad7 ? `${gad7.score}/${gad7.maxScore}` : '—' },
+      { k: 'Suppression',v: last?.moodSentimentDivergence != null ? last.moodSentimentDivergence.toFixed(2) : '—' },
+    ]
+    need(24)
+    const tw = W / tiles.length
+    tiles.forEach((t, i) => {
+      const x = M + i * tw
+      pdf.setFillColor(...CREAM); pdf.roundedRect(x + 1, y, tw - 2, 18, 2, 2, 'F')
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12); pdf.setTextColor(...INK)
+      pdf.text(String(t.v), x + tw / 2, y + 8, { align: 'center' })
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(...MUTED)
+      pdf.text(t.k, x + tw / 2, y + 13.5, { align: 'center' })
+    })
+    y += 26
+
+    // ── AI clinical summary ──
+    heading('AI clinical summary')
     if (summary) {
-      pdf.setFontSize(11)
-      pdf.text('AI Summary:', 20, 75)
-      pdf.text(pdf.splitTextToSize(summary, 170), 20, 85)
+      body(summary, 9.5)
+      y += 2
+      body(
+        `Model: ${summaryModel ? summaryModel.replace(/^nvidia-/, '') : 'NVIDIA model chain'} · generated from structured 30-day aggregates only.`,
+        7.5, MUTED
+      )
+    } else {
+      body('Not generated. Open the patient record and select "Generate Summary" before exporting.', 9.5, MUTED)
     }
-    if (patient?.topFactors?.length) {
-      pdf.text('Top Risk Factors:', 20, 110)
-      patient.topFactors.forEach((f, i) => pdf.text(`• ${f}`, 25, 120 + i * 10))
+    y += 8
+
+    // ── SHAP factors ──
+    heading('Top risk factors (SHAP)')
+    if (shap.length) {
+      shap.forEach((f, i) => {
+        need(8)
+        pdf.setFillColor(...(i === 0 ? RISK_RGB.high : i === 1 ? RISK_RGB.moderate : ROSE))
+        pdf.circle(M + 1.6, y - 1.4, 1.3, 'F')
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(...INK)
+        pdf.text(String(f), M + 6, y, { maxWidth: W - 6 })
+        y += 6.5
+      })
+      y += 1
+      body('Ranked by SHAP contribution to the XGBoost risk score. Not keyword matching.', 7.5, MUTED)
+    } else {
+      body('No SHAP factors computed yet — requires at least one mood check-in.', 9.5, MUTED)
     }
-    pdf.save(`Niranthara_${(patient?.name || uid).replace(/\s/g, '_')}_report.pdf`)
+    y += 8
+
+    // ── Assessment history ──
+    heading('Validated assessments')
+    if (assessments.length) {
+      assessments.slice(-8).reverse().forEach((a) => {
+        need(6)
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(...INK)
+        const flag = a.selfHarmFlag ? '   [ITEM 9 FLAGGED]' : ''
+        pdf.text(
+          `${new Date(a.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}    ${String(a.type).toUpperCase()}    ${a.score}/${a.maxScore}    ${a.severity}${flag}`,
+          M, y
+        )
+        y += 5.6
+      })
+    } else {
+      body('No PHQ-9 or GAD-7 recorded.', 9.5, MUTED)
+    }
+    y += 8
+
+    // ── Recent check-ins ──
+    heading('Recent check-ins')
+    if (moodLogs.length) {
+      need(7)
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(...MUTED)
+      pdf.text('DATE', M, y)
+      pdf.text('MOOD', M + 42, y)
+      pdf.text('SLEEP', M + 62, y)
+      pdf.text('RISK', M + 84, y)
+      pdf.text('EMOTION', M + 104, y)
+      pdf.text('CRISIS P', M + 140, y)
+      y += 4.5
+      moodLogs.slice(-12).reverse().forEach((l) => {
+        need(6)
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.setTextColor(...INK)
+        pdf.text(new Date(l.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }), M, y)
+        pdf.text(`${l.moodScore ?? '—'}/5`, M + 42, y)
+        pdf.text(l.sleepHours != null ? `${l.sleepHours}h` : '—', M + 62, y)
+        pdf.text(`${((l.riskScore || 0) * 100).toFixed(0)}%`, M + 84, y)
+        pdf.text(String(l.nlpResults?.emotionLabel || '—'), M + 104, y)
+        pdf.text(`${((l.nlpResults?.crisisProbability || 0) * 100).toFixed(0)}%`, M + 140, y)
+        y += 5.4
+      })
+    } else {
+      body('No check-ins in the last 30 days. Loss of follow-up is itself a clinical signal.', 9.5, MUTED)
+    }
+
+    footer()
+    const safeName = (patient?.name || uid).replace(/[^\w-]+/g, '_')
+    pdf.save(`Niranthara_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
   const chartData = moodLogs.map(l => ({
@@ -423,7 +607,7 @@ export default function PatientDetail() {
             <div>
               <strong>Crisis probability above threshold</strong>
               <div style={{ fontSize: 12, opacity: 0.9 }}>
-                NLP classifier (mental-roberta) — not keyword matching
+                NLP classifier (sentinet/suicidality) — not keyword matching
               </div>
             </div>
           </div>
@@ -497,8 +681,12 @@ export default function PatientDetail() {
           {/* AI clinical narrative — structured signals only, never raw journal text */}
           <div className="card">
             <div style={{ fontWeight: 500, marginBottom: 4 }}>AI Clinical Summary</div>
+            {/* The model is a chain, not a fixed choice — label whichever tier
+                actually answered rather than asserting Minimax every time. */}
             <div className="muted mono" style={{ fontSize: 10, marginBottom: 'var(--sp-lg)' }}>
-              Minimax M2.7 · NVIDIA Cloud · from structured signals, not journal text
+              {summaryModel
+                ? `${summaryModel.replace(/^nvidia-/, '')} · NVIDIA Cloud · from structured signals, not journal text`
+                : 'NVIDIA model chain · from structured signals, not journal text'}
             </div>
             {summary ? (
               <>
@@ -594,7 +782,7 @@ export default function PatientDetail() {
                   value: moodLogs[moodLogs.length - 1]?.nlpResults?.crisisProbability != null
                     ? `${(moodLogs[moodLogs.length - 1].nlpResults.crisisProbability * 100).toFixed(0)}%`
                     : '—',
-                  sub: 'mental-roberta'
+                  sub: 'suicidality classifier'
                 },
                 {
                   label: 'Suppression',

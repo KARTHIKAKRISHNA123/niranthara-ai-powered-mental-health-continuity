@@ -86,7 +86,7 @@ function IconCheckCircle({ size = 44 }) {
 const ALERT_PRESENTATION = {
   crisis: {
     title: 'Crisis detected',
-    sub:   'mental-roberta NLP classifier',
+    sub:   'suicidality NLP classifier',
     bg: '#FDEAE6', border: 'var(--alert)', color: 'var(--risk-high-color)',
     Icon: IconAlertOctagon,
   },

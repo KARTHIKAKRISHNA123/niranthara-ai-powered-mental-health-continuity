@@ -40,7 +40,7 @@ const testUser = {
   "riskLevel": "high",
   "riskScore": 0.72,
   "topFactors": [
-    "Crisis probability elevated (mental-roberta)",
+    "Crisis probability elevated (suicidality classifier)",
     "Sleep 32% below personal baseline",
     "Mood-sentiment divergence rising (suppression)"
   ],
@@ -98,7 +98,7 @@ async function seedData() {
       riskScore: 0.88,
       crisisProb: 0.85,
       triggerFactors: [
-        'Crisis probability elevated above 0.85 (mental-roberta)',
+        'Crisis probability elevated above 0.85 (suicidality classifier)',
         'Mood-sentiment divergence detected (suppression)',
         'Physiological stress score: 72% (HRV dropped)'
       ],

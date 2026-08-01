@@ -54,7 +54,7 @@ Every stage is a trained model. A smartwatch and phone sense continuously; nine 
 | # | Feature | Powered by | Surface |
 |---|---|---|---|
 | 1 | AI companion chat, multi-turn memory, context-injected (mood, cycle, risk, emotion) | Llama 3.1 8B → Minimax M2.7 chain, NVIDIA cloud | Mobile |
-| 2 | Crisis detection on every journal and chat message | `mental/mental-roberta-base` | Mobile → Dashboard |
+| 2 | Crisis detection on every journal and chat message | `sentinet/suicidality` | Mobile → Dashboard |
 | 3 | Two-tier medication guardrail (input question deferral + output dosing block) | Deterministic safety floor | Mobile |
 | 4 | In-app crisis support: tap-to-call Tele-MANAS 14416, grounding, breathing — offline-capable | — | Mobile |
 | 5 | PHQ-9 and GAD-7 validated assessments, one question per screen, server-scored | Item-9 self-harm protocol → clinician alert | Mobile → Dashboard |
@@ -155,7 +155,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | FastAPI | 0.110.0 | ML serving framework | 9 routers exposing every model as REST | Async-native, Pydantic validation, auto OpenAPI docs at `/docs` | Routers, Pydantic v2 models, startup events (model warm-up) |
 | PyTorch | ≥2.6.0 | Deep learning | Per-user cycle LSTMs and LSTM autoencoders (behavioral anomaly manifold) | Dynamic graphs suit per-user model training at runtime | `nn.LSTM`, state dicts persisted per uid, CPU inference |
-| transformers | ≥4.45.0 | NLP models | Crisis (`mental-roberta-base`), emotion (`distilroberta`), sentiment (IndicBERT) pipelines | Pretrained clinical/multilingual checkpoints, zero training required | `pipeline()`, `AutoTokenizer`, lazy load + boot warm-up |
+| transformers | ≥4.45.0 | NLP models | Crisis (`sentinet/suicidality`), emotion (`distilroberta`), sentiment (IndicBERT) pipelines | Pretrained clinical/multilingual checkpoints, zero training required | `pipeline()`, `AutoTokenizer`, lazy load + boot warm-up |
 | XGBoost | ≥2.1.0 | Gradient boosting | 15-feature risk fusion, dropout classifier, per-user JITAI receptivity | Tabular SOTA, fast CPU inference, SHAP-compatible | `predict_proba`, multiclass softprob, pkl persistence |
 | SHAP | ≥0.50.0 | Explainability | Top-3 risk drivers on every prediction, dashboard + mobile panels | Model-honest attributions clinicians can defend | `TreeExplainer`, version-normalized via `_select_class_shap()` |
 | openai (SDK) | ≥1.12.0 | LLM client | NVIDIA's OpenAI-compatible endpoint (`integrate.api.nvidia.com`) | One SDK, any provider; `max_retries=0` because the model chain is the retry strategy | `AsyncOpenAI`, per-request `timeout`, chat completions |
@@ -220,7 +220,7 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
 
 | # | Router | Model | Input → Output | Personalization |
 |---|---|---|---|---|
-| 1 | `crisis.py` | `mental/mental-roberta-base` | text → crisis probability | population |
+| 1 | `crisis.py` | `sentinet/suicidality` | text → crisis probability | population |
 | 2 | `sentiment.py` | `ai4bharat/indic-bert` | text (English/Tamil/Tanglish) → polarity + language | population |
 | 3 | `emotion.py` | `j-hartmann/emotion-english-distilroberta-base` | text → 7-emotion distribution | population |
 | 4 | `predict.py` | XGBoost (15 features) + SHAP | mood, sentiment, crisis prob, divergence, cycle vulnerability, anomaly score, biometrics… → risk score/level + top factors | population model, per-patient features |
@@ -252,7 +252,7 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
 6. STEP 2 — utils/aiClient.js fan-out, Promise.allSettled (any failure degrades, never blocks):
    → POST /api/sentiment/analyze  (IndicBERT)
    → POST /api/emotion/detect     (distilroberta)
-   → POST /api/crisis/detect      (mental-roberta)
+   → POST /api/crisis/detect      (sentinet/suicidality)
 7. STEP 3 — mood–sentiment divergence computed (masked-depression signal)
 8. STEP 4 — GET /api/cycle/predict/:uid  (per-user LSTM; safe default on miss)
 9. STEP 5 — POST /api/predict/risk  (XGBoost 15-feature fusion)
@@ -387,7 +387,7 @@ sequenceDiagram
   M->>B: POST chat message (60s timeout, history)
   B->>F: read user + cycle + last mood context
   B->>A: POST api chat (context payload)
-  A->>A: mental-roberta crisis check
+  A->>A: sentinet/suicidality crisis check
   A->>A: dosing-question guardrail
   A->>N: Llama 3.1 (12s budget)
   N-->>A: reply (or fall to Minimax 25s)

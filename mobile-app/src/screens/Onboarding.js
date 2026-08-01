@@ -1,299 +1,289 @@
-// src/screens/Onboarding.js — Persona Select per Build_Guide §23
-// Women-first prototype: Women is fully active. Others show "Coming Soon".
+// src/screens/Onboarding.js — profile setup
+//
+// Niranthara monitors continuity of care for everyone. Cycle tracking is an
+// additional signal for people who menstruate, not the shape of the product, so
+// onboarding asks who you are and whether that signal applies — it never
+// assumes. Users who opt out never see a cycle ring, a Cycle tab, or a
+// hormonal-vulnerability nudge anywhere in the app.
 
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, Alert
+  ActivityIndicator, ScrollView, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '../theme/theme';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { GENDERS, GENDER_LABELS } from '../utils/profile';
 
-const PERSONAS = [
+const GENDER_OPTIONS = [
+  { id: GENDERS.FEMALE,    icon: 'user',      cycleEligible: true  },
+  { id: GENDERS.MALE,      icon: 'user',      cycleEligible: false },
+  { id: GENDERS.NONBINARY, icon: 'users',     cycleEligible: true  },
+  { id: GENDERS.UNSPOKEN,  icon: 'shield',    cycleEligible: true  },
+];
+
+// Support profile — changes tone, tap-target size and which triggers are
+// monitored. Every option is live; none of these gate the core pipeline.
+const SUPPORT_PROFILES = [
   {
-    id: 'women',
-    emoji: '👩',
-    name: 'Women',
-    description: 'Hormonal cycle tracking, 8 depression triggers, full ML pipeline.',
-    features: ['Cycle LSTM active', 'Hormonal risk boost', 'All 8 triggers', 'JITAI personalized'],
-    available: true,
-    accentColor: COLORS.rose,
-    bgColor: COLORS.roseLight,
+    id: 'general',
+    name: 'Standard',
+    description: 'Full monitoring, standard interface.',
+    accent: COLORS.rose,
+    bg: COLORS.roseLight,
+  },
+  {
+    id: 'student',
+    name: 'Student',
+    description: 'Exam-period and sleep-debt triggers weighted higher.',
+    accent: COLORS.lavender,
+    bg: COLORS.lavenderLight,
   },
   {
     id: 'elderly',
-    emoji: '👴',
-    name: 'Elderly',
-    description: 'Voice-first, large tap targets, family view.',
-    features: ['Voice-first mode', '72px tap targets', 'Family view'],
-    available: false,
-    accentColor: COLORS.lavender,
-    bgColor: COLORS.lavenderLight,
+    name: 'Senior',
+    description: 'Larger text and tap targets, isolation triggers weighted higher.',
+    accent: COLORS.sage,
+    bg: COLORS.sageLight,
   },
   {
-    id: 'disabled',
-    emoji: '♿',
-    name: 'Disabled',
-    description: 'Full screen reader, voice-only input, WCAG AA.',
-    features: ['Voice-only input', 'Screen reader', '64px tap targets'],
-    available: false,
-    accentColor: COLORS.sage,
-    bgColor: COLORS.sageLight,
-  },
-  {
-    id: 'general',
-    emoji: '🧑',
-    name: 'General',
-    description: '7 triggers, standard UI, Crisis + JITAI NLP.',
-    features: ['7 triggers', 'Standard UI', 'Crisis + JITAI NLP'],
-    available: false,
-    accentColor: COLORS.warmGray,
-    bgColor: '#F0EDE8',
+    id: 'caregiver',
+    name: 'Caregiver',
+    description: 'Burnout and loss-of-follow-up triggers weighted higher.',
+    accent: COLORS.warmGray,
+    bg: '#F0EDE8',
   },
 ];
 
 export default function OnboardingScreen({ navigation }) {
-  const { currentUser, refreshDbUser } = useAuth();
-  const [selected, setSelected] = useState('women'); // Women pre-selected
-  const [saving, setSaving] = useState(false);
+  const { refreshDbUser } = useAuth();
+  const [gender, setGender]           = useState(null);
+  const [wantsCycle, setWantsCycle]   = useState(true);
+  const [profile, setProfile]         = useState('general');
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState('');
+
+  const selectedGender = GENDER_OPTIONS.find(g => g.id === gender);
+  const cycleEligible  = !!selectedGender?.cycleEligible;
+  const tracksCycle    = cycleEligible && wantsCycle;
 
   const handleContinue = async () => {
-    if (selected !== 'women') {
-      Alert.alert(
-        'Coming Soon',
-        'This persona is not available in the current prototype. Please select Women to continue.',
-      );
-      return;
-    }
+    if (!gender) { setError('Please choose an option so we can set up your profile.'); return; }
+    setError('');
     setSaving(true);
     try {
       await api.patch('/auth/update-profile', {
-        persona: selected,
+        gender,
+        tracksCycle,
+        personaType: profile,
         onboardingComplete: true,
       });
-      if (refreshDbUser) await refreshDbUser();
+      await refreshDbUser?.();
+      // Navigator swaps the stack once onboardingComplete lands; no manual
+      // replace() — that raced the refresh and briefly showed a dead screen.
     } catch (e) {
-      console.warn('Could not save persona (offline):', e.message);
-    } finally {
+      setError(`Could not save your profile — ${e.response?.data?.error || e.message}. Please check your connection and try again.`);
       setSaving(false);
-      navigation.replace('MainTabs');
+      return;
     }
+    setSaving(false);
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
+
         <View style={styles.header}>
-          <Text style={styles.title}>Who are you?</Text>
+          <Text style={styles.title}>Set up your care</Text>
           <Text style={styles.subtitle}>
-            This helps us personalize your ML models and risk detection.
+            This shapes which signals we monitor for you. You can change any of
+            it later in settings.
           </Text>
         </View>
 
-        {/* Persona Cards */}
-        {PERSONAS.map((p) => {
-          const isSelected = selected === p.id;
+        {/* ── Gender ── */}
+        <Text style={styles.sectionLabel}>How do you identify?</Text>
+        <View style={styles.genderGrid}>
+          {GENDER_OPTIONS.map((g) => {
+            const active = gender === g.id;
+            return (
+              <TouchableOpacity
+                key={g.id}
+                style={[styles.genderCard, active && styles.genderCardActive]}
+                onPress={() => { setGender(g.id); setError(''); }}
+                activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={GENDER_LABELS[g.id]}
+              >
+                <View style={[styles.genderIcon, active && { backgroundColor: COLORS.roseLight }]}>
+                  <Feather
+                    name={g.icon}
+                    size={18}
+                    color={active ? COLORS.roseDark : COLORS.warmGray}
+                  />
+                </View>
+                <Text style={[styles.genderText, active && styles.genderTextActive]}>
+                  {GENDER_LABELS[g.id]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── Cycle opt-in — only when it can apply ── */}
+        {cycleEligible && (
+          <View style={styles.cycleCard}>
+            <View style={styles.cycleRow}>
+              <View style={styles.cycleIconBox}>
+                <Feather name="moon" size={18} color={COLORS.roseDark} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cycleTitle}>Track my cycle</Text>
+                <Text style={styles.cycleSub}>
+                  Adds a personalised LSTM that learns your cycle and flags
+                  hormonal vulnerability windows.
+                </Text>
+              </View>
+              <Switch
+                value={wantsCycle}
+                onValueChange={setWantsCycle}
+                trackColor={{ false: COLORS.softGray, true: COLORS.rose }}
+                thumbColor={COLORS.warmWhite}
+                accessibilityLabel="Enable cycle tracking"
+              />
+            </View>
+            {!wantsCycle && (
+              <Text style={styles.cycleOffNote}>
+                Cycle tracking stays off. Everything else works exactly the same.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* ── Support profile ── */}
+        <Text style={styles.sectionLabel}>What best describes your situation?</Text>
+        {SUPPORT_PROFILES.map((p) => {
+          const active = profile === p.id;
           return (
             <TouchableOpacity
               key={p.id}
-              style={[
-                styles.card,
-                isSelected && { borderColor: p.accentColor, borderWidth: 2 },
-                !p.available && styles.cardDisabled,
-              ]}
-              onPress={() => p.available ? setSelected(p.id) : null}
-              activeOpacity={p.available ? 0.8 : 1}
-              accessibilityLabel={`Select ${p.name} persona`}
+              style={[styles.profileCard, active && { borderColor: p.accent, borderWidth: 2 }]}
+              onPress={() => setProfile(p.id)}
+              activeOpacity={0.8}
               accessibilityRole="radio"
-              accessibilityState={{ selected: isSelected }}
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${p.name}. ${p.description}`}
             >
-              {/* Coming Soon badge */}
-              {!p.available && (
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>Coming Soon</Text>
+              <View style={[styles.profileDot, { backgroundColor: active ? p.accent : COLORS.softGray }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileName}>{p.name}</Text>
+                <Text style={styles.profileDesc}>{p.description}</Text>
+              </View>
+              {active && (
+                <View style={[styles.checkCircle, { backgroundColor: p.accent }]}>
+                  <Feather name="check" size={13} color={COLORS.warmWhite} />
                 </View>
               )}
-
-              <View style={styles.cardRow}>
-                {/* Emoji + selection ring */}
-                <View style={[
-                  styles.emojiRing,
-                  { backgroundColor: isSelected ? p.bgColor : COLORS.cream },
-                  isSelected && { borderColor: p.accentColor, borderWidth: 2 },
-                ]}>
-                  <Text style={styles.emoji}>{p.emoji}</Text>
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.nameRow}>
-                    <Text style={[styles.personaName, !p.available && styles.muted]}>
-                      {p.name}
-                    </Text>
-                  </View>
-                  <Text style={[styles.personaDesc, !p.available && styles.muted]}>
-                    {p.description}
-                  </Text>
-
-                  {/* Feature pills */}
-                  {p.available && (
-                    <View style={styles.pills}>
-                      {p.features.map((f) => (
-                        <View key={f} style={[styles.pill, { backgroundColor: p.bgColor }]}>
-                          <Text style={[styles.pillText, { color: p.accentColor }]}>✓ {f}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Selected indicator */}
-                {isSelected && (
-                  <View style={[styles.checkCircle, { backgroundColor: p.accentColor }]}>
-                    <Text style={styles.checkMark}>✓</Text>
-                  </View>
-                )}
-              </View>
             </TouchableOpacity>
           );
         })}
 
-        {/* Note */}
-        <Text style={styles.note}>
-          ★ Elderly, Disabled, and General personas will be available in the next update.
-        </Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Continue button */}
         <TouchableOpacity
-          style={[styles.btn, saving && styles.btnDisabled]}
+          style={[styles.btn, (saving || !gender) && styles.btnDisabled]}
           onPress={handleContinue}
-          disabled={saving}
-          accessibilityLabel="Continue with selected persona"
+          disabled={saving || !gender}
+          accessibilityLabel="Save profile and continue"
         >
-          {saving ? (
-            <ActivityIndicator color={COLORS.warmWhite} />
-          ) : (
-            <Text style={styles.btnText}>Continue →</Text>
-          )}
+          {saving
+            ? <ActivityIndicator color={COLORS.warmWhite} />
+            : <Text style={styles.btnText}>Continue</Text>}
         </TouchableOpacity>
+
+        <Text style={styles.privacyNote}>
+          Your profile stays on your account. Journals and messages are
+          encrypted before they ever leave your phone.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.cream },
+  safe:    { flex: 1, backgroundColor: COLORS.cream },
   content: { padding: SPACING.xl, paddingBottom: SPACING.xxxl },
 
-  header: { marginBottom: SPACING.xxl },
-  title: {
-    fontFamily: FONTS.display,
-    fontSize: 40,
-    color: COLORS.charcoal,
-    lineHeight: 44,
-  },
-  subtitle: {
-    fontFamily: FONTS.body,
-    fontSize: 15,
-    color: COLORS.warmGray,
-    lineHeight: 22,
+  header:   { marginBottom: SPACING.xl },
+  title:    { fontFamily: FONTS.display, fontSize: 38, color: COLORS.charcoal, lineHeight: 44 },
+  subtitle: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.warmGray, lineHeight: 21, marginTop: 4 },
+
+  sectionLabel: {
+    fontFamily: FONTS.medium, fontSize: 13, color: COLORS.charcoal,
+    marginTop: SPACING.xl, marginBottom: SPACING.md,
   },
 
-  card: {
+  // Gender
+  genderGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  genderCard: {
+    width: '48%', minHeight: 84,
     backgroundColor: COLORS.warmWhite,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: 'rgba(44,40,38,0.1)',
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder,
+    padding: SPACING.md, alignItems: 'flex-start', justifyContent: 'center', gap: 8,
   },
-  cardDisabled: { opacity: 0.55 },
+  genderCardActive: { borderColor: COLORS.rose, borderWidth: 2, backgroundColor: COLORS.warmWhite },
+  genderIcon: {
+    width: 34, height: 34, borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.cream, alignItems: 'center', justifyContent: 'center',
+  },
+  genderText:       { fontFamily: FONTS.body, fontSize: 13, color: COLORS.warmGray },
+  genderTextActive: { fontFamily: FONTS.medium, color: COLORS.charcoal },
 
-  comingSoonBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: COLORS.softGray,
-    borderRadius: RADIUS.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    zIndex: 1,
+  // Cycle opt-in
+  cycleCard: {
+    backgroundColor: COLORS.roseLight, borderRadius: RADIUS.lg,
+    padding: SPACING.lg, marginTop: SPACING.lg,
   },
-  comingSoonText: {
-    fontFamily: FONTS.medium,
-    fontSize: 10,
-    color: COLORS.warmGray,
-    letterSpacing: 0.5,
+  cycleRow:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  cycleIconBox: {
+    width: 40, height: 40, borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.warmWhite, alignItems: 'center', justifyContent: 'center',
   },
+  cycleTitle:   { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.roseDark },
+  cycleSub:     { fontFamily: FONTS.body, fontSize: 12, color: COLORS.roseDark, lineHeight: 17, opacity: 0.85, marginTop: 2 },
+  cycleOffNote: { fontFamily: FONTS.body, fontSize: 11.5, color: COLORS.roseDark, opacity: 0.8, marginTop: SPACING.md },
 
-  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md },
-  emojiRing: {
-    width: 56,
-    height: 56,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(44,40,38,0.1)',
+  // Support profile
+  profileCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.warmWhite, borderRadius: RADIUS.md,
+    padding: SPACING.lg, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.cardBorder, minHeight: 72,
   },
-  emoji: { fontSize: 28 },
+  profileDot:  { width: 10, height: 10, borderRadius: 5 },
+  profileName: { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.charcoal },
+  profileDesc: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.warmGray, lineHeight: 17, marginTop: 2 },
+  checkCircle: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
 
-  cardBody: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm, marginBottom: 4 },
-  personaName: {
-    fontFamily: FONTS.medium,
-    fontSize: 17,
-    color: COLORS.charcoal,
-  },
-  personaDesc: {
-    fontFamily: FONTS.body,
-    fontSize: 13,
-    color: COLORS.warmGray,
-    lineHeight: 19,
-    marginBottom: SPACING.sm,
-  },
-  muted: { color: COLORS.softGray },
-
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: {
-    borderRadius: RADIUS.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  pillText: { fontFamily: FONTS.medium, fontSize: 10 },
-
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  checkMark: { color: COLORS.warmWhite, fontSize: 13, fontWeight: '600' },
-
-  note: {
-    fontFamily: FONTS.body,
-    fontSize: 12,
-    color: COLORS.warmGray,
-    textAlign: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.xl,
-    lineHeight: 18,
+  error: {
+    fontFamily: FONTS.body, fontSize: 13, color: COLORS.alert,
+    marginTop: SPACING.lg, lineHeight: 19,
   },
 
   btn: {
-    backgroundColor: COLORS.rose,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    alignItems: 'center',
+    backgroundColor: COLORS.rose, borderRadius: RADIUS.lg,
+    padding: SPACING.lg, alignItems: 'center', marginTop: SPACING.xl, minHeight: 52,
+    justifyContent: 'center',
   },
-  btnDisabled: { opacity: 0.6 },
-  btnText: {
-    fontFamily: FONTS.medium,
-    fontSize: 17,
-    color: COLORS.warmWhite,
+  btnDisabled: { opacity: 0.5 },
+  btnText:     { fontFamily: FONTS.medium, fontSize: 16, color: COLORS.warmWhite },
+
+  privacyNote: {
+    fontFamily: FONTS.body, fontSize: 11.5, color: COLORS.warmGray,
+    textAlign: 'center', lineHeight: 17, marginTop: SPACING.lg,
   },
 });

@@ -29,13 +29,13 @@
 13. Mobile Application
 14. Backend Service
 15. AI Service — Full NLP/ML Pipeline
-16. Crisis Detection — NLP Classifier (mental-roberta)
+16. Crisis Detection — NLP Classifier (sentinet/suicidality)
 17. Sentiment Analysis — IndicBERT
 18. Emotion Detection — distilroberta
 19. Cycle Phase Prediction — Personalized LSTM
 20. Risk Prediction — XGBoost 14-Feature Fusion
 21. JITAI Engine — Personalized ML Trigger
-22. Chat Response — Gemma 4B Context-Aware
+22. Chat Response — the NVIDIA model chain Context-Aware
 23. Depression Detection — Multi-Signal Fusion
 24. Tamil NLP Integration
 25. Clinician Dashboard
@@ -45,7 +45,7 @@
 29. Accessibility Standards
 30. Rural Accessibility
 31. Firebase Configuration
-32. Gemma 4B Setup — RTX 3050
+32. LLM Setup — NVIDIA cloud model chain
 33. Environment Configuration
 34. Project Folder Structure
 35. Git Workflow
@@ -65,13 +65,13 @@ Every intelligence layer uses trained ML models or NLP classifiers:
 
 | Layer | Model | Task |
 |---|---|---|
-| Crisis detection | mental/mental-roberta-base | Probability-based — not keyword matching |
+| Crisis detection | sentinet/suicidality | Probability-based — not keyword matching |
 | Sentiment analysis | ai4bharat/indic-bert | Tamil/Tanglish/English semantic understanding |
 | Emotion detection | j-hartmann/emotion-distilroberta-base | 7-class emotion classification |
 | Cycle prediction | Personalized LSTM per user | Individual cycle pattern — handles irregular cycles |
 | Risk prediction | XGBoost 14-feature fusion | Multi-signal clinical risk score |
 | JITAI timing | Personalized XGBoost per user | Learns when THIS user responds to interventions |
-| Chat response | Gemma 4B via Ollama CUDA | Context-aware generative Tamil/English response |
+| Chat response | NVIDIA cloud model chain (llama-3.1-8b → minimax-m2.7) | Context-aware generative Tamil/English response |
 | Depression detection | Multi-signal fusion | All 8 triggers combined probabilistically |
 
 Hardware: RTX 3050 + 16GB RAM — all models run locally.
@@ -476,7 +476,7 @@ Node.js Backend (port 5000)
 Python AI Service (port 8000)
         |
         |-----> IndicBERT          --> sentiment_score
-        |-----> mental-roberta     --> crisis_probability
+        |-----> sentinet/suicidality     --> crisis_probability
         |-----> emotion-distilroberta --> emotion_label
         |-----> Personalized LSTM  --> cycle_vulnerability_score
         |-----> UserBaseline       --> 8 deviation_scores
@@ -539,10 +539,10 @@ Clinician dashboard alert (real-time Firestore)
 ### AI Service — NLP/ML Models
 | Model | Framework | Task |
 |---|---|---|
-| mental/mental-roberta-base | HuggingFace + PyTorch + CUDA | Crisis probability |
+| sentinet/suicidality | HuggingFace + PyTorch + CUDA | Crisis probability |
 | ai4bharat/indic-bert | HuggingFace + PyTorch + CUDA | Tamil/EN sentiment |
 | j-hartmann/emotion-english-distilroberta-base | HuggingFace + PyTorch + CUDA | 7-class emotion |
-| Gemma 4B | Ollama + CUDA (RTX 3050) | Generative chat |
+| NVIDIA model chain | NVIDIA cloud API (OpenAI-compatible) | Generative chat |
 | XGBoost (14 features) | XGBoost + SHAP | Risk fusion |
 | Personalized LSTM | PyTorch | Cycle prediction per user |
 | Personalized XGBoost | XGBoost | JITAI receptivity per user |
@@ -617,7 +617,7 @@ Clinician dashboard alert (real-time Firestore)
     "sentimentLabel":        "negative | neutral | positive",
     "emotionLabel":          "sadness | fear | anger | joy | neutral | disgust | surprise",
     "emotionConfidence":     "number 0-1",
-    "crisisProbability":     "number 0-1 — mental-roberta output",
+    "crisisProbability":     "number 0-1 — sentinet/suicidality output",
     "detectedLanguage":      "ta | en | tanglish"
   },
   "cycleDay":                "number — from personalized LSTM",
@@ -693,7 +693,7 @@ Clinician dashboard alert (real-time Firestore)
   "moodScore":         "number — context injected",
   "riskLevel":         "string — context injected",
   "suggestions":       ["string"],
-  "modelUsed":         "gemma4b | fallback",
+  "modelUsed":         "nvidia-llama-3.1-8b-instruct | nvidia-minimax-m2.7 | fallback_*",
   "responseTimeMs":    "number",
   "offlineSyncId":     "string",
   "timestamp":         "timestamp"
@@ -777,8 +777,8 @@ GET    /predict/:uid          Next period + vulnerability window
 
 ### Chat Routes — /api/chat
 ```
-POST   /message               Full NLP → Gemma generative response
-POST   /voice                 Sarvam STT → NLP → Gemma
+POST   /message               Full NLP → LLM generative response
+POST   /voice                 Sarvam STT → NLP → the NVIDIA model chain
 GET    /history/:uid          Last 50 chat records
 DELETE /clear/:uid            Clear history
 ```
@@ -812,7 +812,7 @@ GET    /explain/:uid          Full SHAP explanation
 ```
 GET    /patients              All patients sorted by risk_score
 GET    /patient/:uid          Full data + NLP results
-GET    /summary/:uid          Gemma narrative summary
+GET    /summary/:uid          LLM narrative summary
 POST   /flag/:uid             Manual flag
 GET    /alerts                Unresolved alerts
 PUT    /resolve-alert/:id     Resolve alert
@@ -820,14 +820,14 @@ PUT    /resolve-alert/:id     Resolve alert
 
 ### AI Service Routes (port 8000)
 ```
-POST   /api/crisis/detect     mental-roberta crisis probability
+POST   /api/crisis/detect     sentinet/suicidality crisis probability
 POST   /api/sentiment/analyze IndicBERT Tamil/EN sentiment
 POST   /api/emotion/detect    distilroberta 7-class emotion
 POST   /api/predict/risk      XGBoost 14-feature risk score
 POST   /api/cycle/predict     Personalized LSTM cycle vulnerability
 POST   /api/cycle/train/:uid  Retrain user cycle model on new data
 POST   /api/jitai/receptivity Personalized JITAI model evaluation
-POST   /api/chat              Full context Gemma response
+POST   /api/chat              Full context LLM response
 GET    /api/health            Model status check
 GET    /docs                  Swagger UI
 ```
@@ -1027,8 +1027,8 @@ ai-service/
 ├── requirements.txt
 ├── routers/
 │   ├── __init__.py
-│   ├── chat.py               Gemma 4B generative
-│   ├── crisis.py             mental-roberta NLP classifier
+│   ├── chat.py               the NVIDIA model chain generative
+│   ├── crisis.py             sentinet/suicidality NLP classifier
 │   ├── sentiment.py          IndicBERT semantic analysis
 │   ├── emotion.py            distilroberta 7-class emotion
 │   ├── predict.py            XGBoost 14-feature risk
@@ -1040,7 +1040,7 @@ ai-service/
 │   ├── user_jitai/           Per-user JITAI model (uid.pkl)
 │   └── model_trainer.py
 ├── utils/
-│   ├── gemma_client.py
+│   ├── nvidia_client.py
 │   ├── sarvam_client.py
 │   ├── language_detector.py
 │   └── baseline.py
@@ -1078,10 +1078,10 @@ def root():
         "app": "Nirantara AI Service v2.0",
         "architecture": "ML-first — zero hardcoding",
         "models": {
-            "crisis":    "mental/mental-roberta-base",
+            "crisis":    "sentinet/suicidality",
             "sentiment": "ai4bharat/indic-bert",
             "emotion":   "j-hartmann/emotion-english-distilroberta-base",
-            "chat":      "gemma:4b via Ollama CUDA RTX 3050",
+            "chat":      "NVIDIA cloud chain: llama-3.1-8b → minimax-m2.7",
             "risk":      "XGBoost 14-feature fusion",
             "cycle":     "Personalized LSTM per user",
             "jitai":     "Personalized XGBoost per user"
@@ -1093,7 +1093,7 @@ def root():
 
 ## 16. Crisis Detection — NLP Classifier
 
-**Model:** mental/mental-roberta-base
+**Model:** sentinet/suicidality
 **Why:** Fine-tuned on mental health text. Understands indirect distress, emotional weight, and context. Not just keyword presence.
 
 ```python
@@ -1109,7 +1109,7 @@ router = APIRouter()
 
 crisis_classifier = pipeline(
     "text-classification",
-    model="mental/mental-roberta-base",
+    model="sentinet/suicidality",
     device=0 if torch.cuda.is_available() else -1
 )
 
@@ -1648,13 +1648,22 @@ async def evaluate_jitai(request: JITAIRequest):
 
 ---
 
-## 22. Chat Response — Gemma 4B Context-Aware
+## 22. Chat Response — NVIDIA model chain, Context-Aware
 
-**Model:** Gemma 4B via Ollama, GPU-accelerated (RTX 3050)
-**Why generative:** Templated responses feel robotic. Gemma generates contextually appropriate, culturally sensitive Tamil/Tanglish/English responses unique to each interaction.
+> **SUPERSEDED (August 2026).** This section documents the original local-LLM
+> design (Ollama + Gemma 4B on an RTX 3050). The LLM is now an **NVIDIA-hosted
+> cloud chain** — `meta/llama-3.1-8b-instruct` primary (~1-2s measured),
+> `minimaxai/minimax-m2.7` quality backstop, then rotating static fallbacks —
+> called from `ai-service/utils/nvidia_client.py` through an OpenAI-compatible
+> client. No Ollama, no local GPU, no model download. Configure with
+> `NVIDIA_API_KEY` in `ai-service/.env`. The code blocks below are kept for
+> historical reference only. **The code is the authority.**
+
+**Model:** NVIDIA-hosted chain — `meta/llama-3.1-8b-instruct` primary, `minimaxai/minimax-m2.7` quality backstop, rotating static fallbacks. Cloud API, no local GPU.
+**Why generative:** Templated responses feel robotic. The LLM generates contextually appropriate, culturally sensitive Tamil/Tanglish/English responses unique to each interaction.
 
 ```python
-# utils/gemma_client.py
+# utils/nvidia_client.py
 import httpx
 
 OLLAMA_URL  = "http://localhost:11434"
@@ -1689,7 +1698,7 @@ async def generate_response(message, cycle_vulnerability=0,
             "system": SYSTEM_PROMPT, "stream": False,
             "options": {"num_gpu":1, "temperature":0.75, "top_p":0.9, "num_predict":250}
         })
-    return {"reply": result.json().get("response","").strip(), "modelUsed": "gemma4b"}
+    return {"reply": result.json().get("response","").strip(), "modelUsed": "nvidia-llama-3.1-8b-instruct"}
 
 
 def _build_context(cycle_vuln, mood, risk, emotion, sentiment):
@@ -1809,7 +1818,7 @@ async def translate_to_english(text):
 - Real-time Firestore onSnapshot — updates without refresh
 - 30-day risk trajectory chart
 - Cycle vulnerability overlay on mood chart
-- Gemma-generated narrative summary (2-3 sentences)
+- LLM-generated narrative summary (2-3 sentences)
 - SHAP factors as readable cards
 
 ---
@@ -1979,7 +1988,7 @@ import psutil
 async def generate_response(message, **kwargs):
     if psutil.virtual_memory().available / (1024**3) < 3.0:
         return get_rule_based_response(message, **kwargs)  # Emergency fallback
-    return await generate_gemma_response(message, **kwargs)
+    return await generate_response(message, **kwargs)
 ```
 
 All core features work on 2G. Payloads compressed. Images lazy-loaded. Full offline operation. Discreet app icon (looks like wellness app). No notifications mentioning "mental health".
@@ -2013,7 +2022,16 @@ passiveLogs: uid (Asc) + createdAt (Desc)
 
 ---
 
-## 32. Gemma 4B Setup — RTX 3050
+## 32. LLM Setup — NVIDIA cloud model chain
+
+> **SUPERSEDED (August 2026).** This section documents the original local-LLM
+> design (Ollama + Gemma 4B on an RTX 3050). The LLM is now an **NVIDIA-hosted
+> cloud chain** — `meta/llama-3.1-8b-instruct` primary (~1-2s measured),
+> `minimaxai/minimax-m2.7` quality backstop, then rotating static fallbacks —
+> called from `ai-service/utils/nvidia_client.py` through an OpenAI-compatible
+> client. No Ollama, no local GPU, no model download. Configure with
+> `NVIDIA_API_KEY` in `ai-service/.env`. The code blocks below are kept for
+> historical reference only. **The code is the authority.**
 
 ```bash
 # Install Ollama from ollama.com
@@ -2066,7 +2084,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 GEMMA_MODEL=gemma:4b
 SARVAM_API_KEY=<key>
 INDICBERT_MODEL=ai4bharat/indic-bert
-CRISIS_MODEL=mental/mental-roberta-base
+CRISIS_MODEL=sentinet/suicidality
 EMOTION_MODEL=j-hartmann/emotion-english-distilroberta-base
 ```
 
@@ -2122,7 +2140,7 @@ nirantara/
 │   │   ├── user_jitai/
 │   │   └── model_trainer.py
 │   └── utils/
-│       ├── gemma_client.py
+│       ├── nvidia_client.py
 │       ├── sarvam_client.py
 │       ├── language_detector.py
 │       └── baseline.py
@@ -2172,16 +2190,16 @@ Rules:
 | 1 | Apr 19 | Auth routes + offline queue + Firestore indexes | Auth screens — signup/OTP/login |
 | 2 | Apr 20 | Passive monitoring + GPS entropy + baseline service | Onboarding — persona select + profile |
 | 3 | Apr 21 | Mood log with full NLP pipeline + cycle LSTM | Home dashboard + mood check-in |
-| 4 | Apr 22 | Gemma chat + crisis NLP + emotion NLP | Tamil AI chat screen |
+| 4 | Apr 22 | LLM chat + crisis NLP + emotion NLP | Tamil AI chat screen |
 | 5 | Apr 23 | XGBoost training + risk endpoint + SHAP | Insights screen + risk ring |
 | 6 | Apr 24 | JITAI personalized model + FCM scheduler | Intervention screens |
-| 7 | Apr 25 | Clinician dashboard backend + Gemma summary | Clinician dashboard UI |
+| 7 | Apr 25 | Clinician dashboard backend + LLM summary | Clinician dashboard UI |
 | 8 | Apr 26 | Full integration — all NLP layers connected to real data | All screens connected to API |
 | 9 | Apr 27 | Security + performance + Tamil testing | UI polish + demo prep |
 | Review | Apr 28 | All models running | Demo ready |
 
 ### Non-Negotiable Rules
-1. Crisis detection uses mental-roberta — never keyword matching
+1. Crisis detection uses sentinet/suicidality — never keyword matching
 2. Sentiment uses IndicBERT — never keyword counting
 3. Cycle vulnerability uses personalized LSTM — never fixed day rules
 4. Risk score uses XGBoost 14-feature fusion — never arithmetic formula
@@ -2208,8 +2226,8 @@ pip install -r requirements.txt
 # Step 2 — Download all NLP models (save as download_models.py, run once)
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 
-print("1/3 crisis detector (mental-roberta)...")
-pipeline("text-classification", model="mental/mental-roberta-base")
+print("1/3 crisis detector (sentinet/suicidality)...")
+pipeline("text-classification", model="sentinet/suicidality")
 
 print("2/3 emotion detector (distilroberta)...")
 pipeline("text-classification",
@@ -2227,7 +2245,7 @@ print("All models downloaded.")
 python models/model_trainer.py
 # Expected: Accuracy 0.85+, model saved to models/risk_model.pkl
 
-# Step 4 — Verify Gemma
+# Step 4 — Verify the NVIDIA model chain (needs NVIDIA_API_KEY)
 ollama pull gemma:4b
 ollama serve
 curl http://localhost:11434/api/tags
@@ -2316,7 +2334,7 @@ Clinician dashboard
 [ ] Patients sorted by XGBoost risk_score
 [ ] Crisis banner for crisis_probability > 0.85
 [ ] Real-time update on patient risk change
-[ ] Gemma narrative summary generated
+[ ] LLM narrative summary generated
 ```
 
 ---
@@ -2326,7 +2344,7 @@ Clinician dashboard
 ### Local Development
 
 ```bash
-# Terminal 1 — Ollama (Gemma)
+# (Ollama no longer used — the LLM is the NVIDIA cloud API)
 OLLAMA_NUM_PARALLEL=2 ollama serve
 
 # Terminal 2 — AI Service
@@ -2407,7 +2425,7 @@ Never:
 - Hardcode clinical thresholds
 
 Always:
-- Use mental-roberta for crisis detection
+- Use sentinet/suicidality for crisis detection
 - Use IndicBERT for Tamil sentiment
 - Use personalized LSTM for cycle phase
 - Use XGBoost for risk score

@@ -1,5 +1,5 @@
 // routes/chatRoutes.js
-// Full context injection + Gemma 4B + encrypted chat logs
+// Full context injection + NVIDIA model chain + encrypted chat logs
 
 const express = require('express')
 const router  = express.Router()
@@ -12,7 +12,7 @@ const { validateChatMessage } = require('../utils/validators')
 
 const { ai } = require('../utils/aiClient')
 
-// POST /api/chat/message — Full NLP → Gemma context-aware response
+// POST /api/chat/message — Full NLP → NVIDIA model chain, context-aware response
 router.post('/message', chatLimiter, verifyToken, async (req, res) => {
   try {
     const uid = req.user.uid
@@ -74,7 +74,10 @@ router.post('/message', chatLimiter, verifyToken, async (req, res) => {
       moodScore:        lastMood.moodScore || 3,
       riskLevel:        user.riskLevel || 'low',
       suggestions:      aiData.suggestions || [],
-      modelUsed:        aiData.modelUsed || 'gemma4b',
+      // Fallback label only when the AI service returned no tag at all — must
+      // not name a model that is no longer in the chain, since this value is
+      // persisted to chatLogs and surfaced as provenance.
+      modelUsed:        aiData.modelUsed || 'unknown',
       responseTimeMs:   aiData.responseTimeMs || 0,
       offlineSyncId:    req.body.offlineSyncId || null,
       timestamp:        new Date().toISOString()
@@ -111,7 +114,7 @@ router.post('/message', chatLimiter, verifyToken, async (req, res) => {
   }
 })
 
-// POST /api/chat/voice — Sarvam STT → NLP → Gemma
+// POST /api/chat/voice — Sarvam STT → NLP → NVIDIA model chain
 router.post('/voice', chatLimiter, verifyToken, async (req, res) => {
   try {
     const { audioBase64, language } = req.body

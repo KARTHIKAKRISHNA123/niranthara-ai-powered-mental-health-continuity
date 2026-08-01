@@ -33,24 +33,34 @@ router.get('/patient/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
+    // uid-only reads + in-memory filter/sort: same composite-index avoidance as
+    // the dashboard and /summary. A missing index here 404'd healthy patients.
+    const recent = (snap) => snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(l => l.createdAt && new Date(l.createdAt) >= thirtyDaysAgo)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
     const [userDoc, cycleDoc, moodSnap, passiveSnap, jitaiSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection('cycleLogs').doc(uid).get(),
-      db.collection('moodLogs').where('uid', '==', uid).where('createdAt', '>=', thirtyDaysAgo.toISOString()).orderBy('createdAt', 'desc').get(),
-      db.collection('passiveLogs').where('uid', '==', uid).where('createdAt', '>=', thirtyDaysAgo.toISOString()).orderBy('createdAt', 'desc').get(),
-      db.collection('jitaiLogs').where('uid', '==', uid).orderBy('timestamp', 'desc').limit(10).get()
+      db.collection('moodLogs').where('uid', '==', uid).get().catch(() => ({ docs: [] })),
+      db.collection('passiveLogs').where('uid', '==', uid).get().catch(() => ({ docs: [] })),
+      db.collection('jitaiLogs').where('uid', '==', uid).get().catch(() => ({ docs: [] }))
     ])
 
     if (!userDoc.exists) return res.status(404).json({ error: 'Patient not found' })
 
-    const moodLogs = moodSnap.docs.map(d => { const { journalText, ...safe } = d.data(); return { id: d.id, ...safe } })
+    const moodLogs = recent(moodSnap).map(({ journalText, ...safe }) => safe)
 
     res.json({
       user:        userDoc.data(),
       cycle:       cycleDoc.exists ? cycleDoc.data() : null,
       moodLogs,
-      passiveLogs: passiveSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-      jitaiLogs:   jitaiSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      passiveLogs: recent(passiveSnap),
+      jitaiLogs:   jitaiSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 10)
     })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -65,15 +75,25 @@ router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
     const uid = req.params.uid
     const thirtyAgo = new Date(); thirtyAgo.setDate(thirtyAgo.getDate() - 30)
 
+    // Fetch by uid only, then filter/sort in memory. The range+orderBy form
+    // needs a composite index that does not exist in this project, and because
+    // this sat inside Promise.all with no catch, a missing index failed the
+    // whole route and reported it as "the AI service may be offline".
     const [userDoc, moodSnap, alertSnap, assessSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
-      db.collection('moodLogs').where('uid', '==', uid).where('createdAt', '>=', thirtyAgo.toISOString()).orderBy('createdAt', 'desc').get(),
+      db.collection('moodLogs').where('uid', '==', uid).get().catch(e => {
+        console.warn('[clinicianRoutes] moodLogs read failed:', e.message)
+        return { docs: [] }
+      }),
       db.collection('clinicianAlerts').where('patientUid', '==', uid).get().catch(() => ({ docs: [] })),
       db.collection('assessments').where('uid', '==', uid).get().catch(() => ({ docs: [] }))
     ])
 
     const user = userDoc.exists ? userDoc.data() : {}
-    const logs = moodSnap.docs.map(d => d.data())
+    const logs = moodSnap.docs
+      .map(d => d.data())
+      .filter(l => l.createdAt && new Date(l.createdAt) >= thirtyAgo)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     const avg  = (arr, f) => arr.length ? arr.reduce((s, l) => s + (f(l) || 0), 0) / arr.length : null
 
     // Mood trend: last 7 days vs first 7 of the window
@@ -106,11 +126,41 @@ router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
       cycleVulnerability: logs[0]?.cycleVulnerability ?? null
     }
 
+    // Nothing to summarise is a distinct state from a failure — say so rather
+    // than asking the model to narrate an empty window.
+    if (!logs.length && !assessments.length) {
+      return res.json({
+        summary: `No check-ins or assessments recorded for ${stats.patientName} in the last 30 days. There is nothing to summarise yet — the loss-of-follow-up signal is itself the clinical finding here.`,
+        modelUsed: 'no_data',
+        stats,
+        generatedAt
+      })
+    }
+
     const summaryRes = await ai.post(`/api/chat/summary`, stats, { timeout: 45000 })
-    res.json({ summary: summaryRes.data.summary, modelUsed: summaryRes.data.modelUsed, generatedAt })
+    res.json({
+      summary:   summaryRes.data.summary,
+      modelUsed: summaryRes.data.modelUsed,
+      stats,
+      generatedAt
+    })
   } catch (error) {
-    console.warn('[clinicianRoutes] summary failed:', error.message)
-    res.json({ summary: 'AI summary unavailable — the AI service may be offline. Review the charts below manually.', modelUsed: 'fallback_backend_error', generatedAt })
+    // Report what actually failed. The old copy blamed the AI service for
+    // every error, including Firestore ones, which sent debugging the wrong way.
+    const reason = error.response
+      ? `AI service returned ${error.response.status}`
+      : error.code === 'ECONNABORTED'
+        ? 'AI service timed out after 45s'
+        : error.code === 'ECONNREFUSED'
+          ? `AI service unreachable at ${process.env.AI_SERVICE_URL || 'http://localhost:8000'}`
+          : error.message
+    console.warn('[clinicianRoutes] summary failed:', reason)
+    res.json({
+      summary: `AI summary unavailable — ${reason}. Review the charts below manually.`,
+      modelUsed: 'fallback_backend_error',
+      error: reason,
+      generatedAt
+    })
   }
 })
 
