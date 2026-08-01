@@ -10,3 +10,5 @@ build/
 *.pyc
 .DS_Store
 serviceAccountKey.json
+CLAUDE.md
+.vscode/
