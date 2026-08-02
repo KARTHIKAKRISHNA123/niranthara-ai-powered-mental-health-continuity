@@ -12,3 +12,9 @@ build/
 serviceAccountKey.json
 CLAUDE.md
 .vscode/
+
+# Never let any .env variant (.bak, .local, .save) reach git — they hold live keys.
+.env*
+!.env.example
+.codex/
+Build_Guide.md
