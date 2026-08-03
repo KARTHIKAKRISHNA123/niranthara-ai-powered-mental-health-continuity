@@ -94,12 +94,12 @@ project report in the Anna University Chennai 600 025 format, adapted for a
 > |---|---|---|
 > | Depression risk score | XGBoost, 15 features, 4-class | Explained by SHAP |
 > | Crisis / suicidality detection | `sentinet/suicidality` (ELECTRA) | Fine-tuned classifier |
-> | Sentiment (Tamil / Tanglish / English) | IndicBERT (`ai4bharat/indic-bert`) | Code-mixed input |
+> | Sentiment (Tamil / Tanglish / English) | XLM-R sentiment (`ai4bharat/indic-bert`) | Code-mixed input |
 > | Emotion (7-class) | `j-hartmann/emotion-english-distilroberta-base` | |
 > | Menstrual-cycle vulnerability | Per-user personalised LSTM | Opt-in signal |
 > | Biometric anomaly | Per-user LSTM autoencoder | Behavioural manifold |
 > | Disengagement / dropout | XGBoost classifier | Loss-of-follow-up |
-> | Conversational agent | NVIDIA-hosted chain: `meta/llama-3.1-8b-instruct` primary → `minimaxai/minimax-m2.7` backstop → static fallbacks | Latency-first |
+> | Conversational agent | NVIDIA-hosted chain: `meta/llama-3.1-8b-instruct` primary → `nvidia/nemotron-3-super-120b-a12b` backstop → static fallbacks | Latency-first |
 > | Tamil speech-to-text | Sarvam AI `saarika:v1` | |
 >
 > **Design principle to state explicitly and defend in the report:** every clinical
@@ -155,14 +155,32 @@ project report in the Anna University Chennai 600 025 format, adapted for a
 >    (Level 0 and Level 1) · 4.3 Use-case diagram · 4.4 Sequence diagrams for both
 >    pipelines · 4.5 Database schema (Firestore collections) · 4.6 User-interface design
 > 5. **MACHINE LEARNING METHODOLOGY** — 5.1 Feature engineering · 5.2 XGBoost risk
->    model · 5.3 SHAP explainability · 5.4 NLP pipeline · 5.5 Personalised LSTM
->    models · 5.6 Model-chain fallback strategy
+>    model **(state explicitly: trained on a 600-row synthetic dataset; the
+>    section must not report accuracy as clinical performance)** · 5.3 SHAP
+>    explainability · 5.4 NLP pipeline · 5.5 Personalised LSTM models
+>    · 5.6 Model-chain fallback strategy · **5.7 Outcome learning: shrunk
+>    per-intervention effectiveness (n·patient + 3·population)/(n+3), the n≥4
+>    reporting threshold, and bounded exploration under two hard safety floors —
+>    explicitly NOT reinforcement learning, and explicitly not claiming to be
+>    exploration-free**
 > 6. **IMPLEMENTATION** — 6.1 Development environment · 6.2 Mobile application
 >    · 6.3 Backend orchestration · 6.4 AI service · 6.5 Clinician dashboard
->    · 6.6 Wearable integration via the Google Health API · 6.7 Security implementation
+>    · 6.6 Wearable integration via the Google Health API **(two ingest paths, one
+>    pipeline; per-signal time windows; multi-source step deduplication; absent
+>    signals stored as null, never zero)** · 6.7 Security implementation
+>    · **6.8 The Recovery Engine — recovery score as a labelled weighted
+>    composite with every component exposed and weights renormalised over present
+>    signals, residual-symptom detection at PHQ-9 item level, plateau detection
+>    from an OLS slope, and the daily plan derived from both**
 > 7. **RESULTS AND DISCUSSION** — 7.1 Functional outcomes · 7.2 Model behaviour and
->    measured latency · 7.3 Crisis-classifier validation · 7.4 Screenshots with
->    discussion · 7.5 Limitations
+>    measured latency · 7.3 Crisis-classifier validation **(include the four-input
+>    probe method and why it matters: two models in this project were found
+>    returning a near-constant score because the checkpoint had no trained
+>    classification head)** · 7.4 Screenshots with discussion · **7.5 End-to-end
+>    verification — the 44-assertion `verifyLoop.js` guard and what each named
+>    regression test protects** · 7.6 Limitations **(synthetic training data,
+>    confounded effect estimates, no guaranteed human response to a crisis alert,
+>    PHI reaching the LLM vendor in plaintext)**
 > 8. **CONCLUSION AND FUTURE WORK** — 8.1 Conclusion · 8.2 Contributions
 >    · 8.3 Future enhancements
 >

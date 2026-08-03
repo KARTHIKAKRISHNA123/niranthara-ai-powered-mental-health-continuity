@@ -3,6 +3,7 @@
 // small phase-colored day dot, clean center typography.
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, ScrollView, RefreshControl
@@ -277,6 +278,14 @@ export default function CycleScreen() {
   }, []);
 
   useEffect(() => { fetchCycleData(); }, [fetchCycleData]);
+  // Matches Home.js — both screens read /cycle/today, so both must refetch on
+  // focus or they drift apart and show different cycle days.
+  //
+  // The callback MUST NOT be the async function itself: an async function
+  // returns a Promise, and useFocusEffect only accepts undefined or a cleanup
+  // function — passing it directly throws "An effect function must not return
+  // anything besides a function". Call it inside a sync wrapper.
+  useFocusEffect(useCallback(() => { fetchCycleData(); }, [fetchCycleData]));
 
   const onRefresh = () => { setRefreshing(true); fetchCycleData(); };
 

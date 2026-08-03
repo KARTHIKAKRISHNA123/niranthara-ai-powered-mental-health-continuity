@@ -9,6 +9,8 @@ const { generalLimiter } = require('../middleware/rateLimiter')
 const notificationService = require('../services/notificationService')
 
 const { ai } = require('../utils/aiClient')
+const { normalizeIntervention } = require('../utils/interventions')
+const { encrypt } = require('../utils/encryption')
 
 // POST /api/jitai/evaluate/:uid — Personalized JITAI ML evaluation
 router.post('/evaluate/:uid', verifyToken, async (req, res) => {
@@ -36,7 +38,8 @@ router.post('/evaluate/:uid', verifyToken, async (req, res) => {
       // Log the JITAI event
       const logRef = await db.collection('jitaiLogs').add({
         uid,
-        interventionType:    result.interventionType,
+        interventionType:    normalizeIntervention(result.interventionType),
+        source:              'jitai',
         priority:            result.priority || 'medium',
         triggerReasons:      result.triggerReasons || [],
         riskScoreAtTrigger:  riskScore || 0.3,
@@ -84,38 +87,120 @@ router.post('/send-notification', verifyToken, async (req, res) => {
 })
 
 // POST /api/jitai/log-response — User response (training signal for personalized model)
+//
+// This route used to hard-require `logId`, but nothing in the mobile app could
+// supply one: no screen consumed /jitai/active, so a patient who completed a
+// breathing exercise produced a 400 that the screen swallowed. Every completed
+// intervention was silently lost, and the outcome loop only ever saw seeded data.
+//
+// It now resolves the intervention itself:
+//   1. explicit logId, if the caller has one (notification deep-link path)
+//   2. otherwise the most recent unanswered intervention of this type in 4h
+//   3. otherwise create a self-initiated record — a patient who opens breathing
+//      unprompted is real engagement and belongs in the effectiveness data
 router.post('/log-response', verifyToken, async (req, res) => {
   try {
-    const { logId, responseType, responseTimeMs } = req.body
-    if (!logId) return res.status(400).json({ error: 'logId is required' })
+    const uid = req.user.uid
+    const { responseType, responseTimeMs } = req.body
+    let   { logId } = req.body
+    const interventionType = normalizeIntervention(req.body.interventionType)
 
     const validResponses = ['feel_better', 'need_more_help', 'ignored']
     if (!validResponses.includes(responseType))
       return res.status(400).json({ error: `responseType must be one of: ${validResponses.join(', ')}` })
 
+    if (!logId && interventionType === 'unknown')
+      return res.status(400).json({ error: 'logId or a known interventionType is required' })
+
+    let source = 'jitai'
+
+    if (!logId) {
+      // Match this completion to a pending delivery. In-memory filter and sort:
+      // the composite index for (uid, interventionType, responseType, timestamp)
+      // does not exist, and the rest of the project deliberately avoids adding
+      // indexes at demo scale.
+      const cutoff = new Date(Date.now() - 4 * 3600 * 1000).toISOString()
+      const snap = await db.collection('jitaiLogs').where('uid', '==', uid).get()
+      const pending = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(j => !j.responseType &&
+                     j.timestamp >= cutoff &&
+                     normalizeIntervention(j.interventionType) === interventionType)
+        .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
+
+      if (pending.length) {
+        logId = pending[0].id
+      } else {
+        const now = new Date()
+        const ref = await db.collection('jitaiLogs').add({
+          uid,
+          interventionType,
+          source:             'self_initiated',
+          priority:           'low',
+          triggerReasons:     ['Patient-initiated — opened from the app, not from a notification'],
+          riskScoreAtTrigger: req.body.riskScoreAtTrigger ?? 0,
+          receptivityScore:   null,
+          notificationSent:   false,
+          openedByUser:       true,
+          responseType:       null,
+          feedbackToModel:    false,
+          hour_of_day:        now.getHours(),
+          day_of_week:        now.getDay(),
+          timestamp:          now.toISOString(),
+          createdAt:          now.toISOString(),
+        })
+        logId = ref.id
+        source = 'self_initiated'
+      }
+    }
+
+    // Therapeutic content the patient produced during the exercise (CBT thought
+    // records). It is clinical free text, so it gets the same AES-256-GCM
+    // treatment as journals and chat — never stored in the clear.
+    const content = req.body.content && typeof req.body.content === 'object' ? req.body.content : null
+    const contentEncrypted = content
+      ? Object.fromEntries(Object.entries(content)
+          .filter(([, v]) => typeof v === 'string' && v.trim())
+          .map(([k, v]) => [k, encrypt(v)]))
+      : null
+
     await db.collection('jitaiLogs').doc(logId).update({
       openedByUser:    true,
       responseType,
       responseTimeMs:  responseTimeMs || null,
-      feedbackToModel: true
+      completedAt:     new Date().toISOString(),
+      feedbackToModel: true,
+      ...(contentEncrypted ? { contentEncrypted } : {})
     })
 
     // Retrain user's personalized JITAI model with new response
     const logDoc = await db.collection('jitaiLogs').doc(logId).get()
     if (logDoc.exists) {
       const uid = logDoc.data().uid
-      const historySnap = await db.collection('jitaiLogs')
-        .where('uid', '==', uid)
-        .where('feedbackToModel', '==', true)
-        .orderBy('timestamp', 'desc').limit(50).get()
+      // Fetch by uid only, then filter and sort in memory. The two-equality +
+      // orderBy form needs a composite index that does not exist in this
+      // project, so it threw FAILED_PRECONDITION *after* the response was
+      // already written — the thought record saved fine and the patient still
+      // got "Could not save the thought record". Same in-memory rule the rest
+      // of the codebase follows at demo scale.
+      const historySnap = await db.collection('jitaiLogs').where('uid', '==', uid).get()
 
-      const history = historySnap.docs.map(d => d.data())
+      const history = historySnap.docs
+        .map(d => d.data())
+        .filter(h => h.feedbackToModel === true)
+        .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
+        .slice(0, 50)
       ai.post(`/api/jitai/train`, { uid, history }).catch(e => {
         console.warn('JITAI retrain non-blocking error:', e.message)
       })
     }
 
-    res.json({ message: 'Response logged. Model will be updated.' })
+    // A logged response changes engagement, which changes effectiveness. Recompute
+    // now so the clinician dashboard is current without waiting for a check-in.
+    require('../services/outcomeService').computeOutcomes(uid)
+      .catch(e => console.warn('[jitai] outcome recompute failed (non-fatal):', e.message))
+
+    res.json({ message: 'Response logged. Model will be updated.', logId, source, interventionType })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

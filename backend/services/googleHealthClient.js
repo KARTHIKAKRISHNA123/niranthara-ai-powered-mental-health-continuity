@@ -123,12 +123,18 @@ async function isConnected(uid) {
 
 // ── Data reads ───────────────────────────────────────────────────────────────
 
-async function listDataPoints(accessToken, dataType, startTime, endTime) {
-  // The list endpoint returns intraday points for a time range.
-  const params = new URLSearchParams({
-    page_size: '1000',
-    filter: `startTime >= "${startTime}" AND endTime <= "${endTime}"`,
-  })
+async function listDataPoints(accessToken, dataType) {
+  // NO server-side time filter, deliberately.
+  //
+  // The obvious `filter: startTime >= "..." AND endTime <= "..."` returns
+  // HTTP 400 INVALID_DATA_POINT_FILTER_RESTRICTION_COMPARABLE for every data
+  // type, because there IS no top-level startTime on a v4 data point — each
+  // type nests its own timestamp (heartRate.sampleTime.physicalTime,
+  // sleep.interval.startTime, dailyRestingHeartRate.date, ...). That 400 was
+  // thrown, swallowed by a .catch(() => null) upstream, and surfaced as
+  // "no records" while the account had plenty. Points come back newest-first,
+  // so we page a slice and window it in JS instead.
+  const params = new URLSearchParams({ page_size: '1000' })
   const url = `${HEALTH_BASE}/users/me/dataTypes/${dataType}/dataPoints?${params}`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
 
@@ -146,19 +152,88 @@ async function listDataPoints(accessToken, dataType, startTime, endTime) {
   return json.dataPoints || json.dataPoint || []
 }
 
-// Response shapes vary per data type; pull the first numeric leaf we recognise
-// rather than assuming one field name.
-function numericValue(point) {
-  if (point == null) return null
-  const v = point.value ?? point
-  if (typeof v === 'number') return v
-  for (const k of [
-    'beatsPerMinute', 'bpm', 'count', 'steps',
-    'milliseconds', 'millis', 'rmssd', 'value', 'doubleValue', 'intValue',
-  ]) {
-    if (typeof v?.[k] === 'number') return v[k]
+// Each v4 data type has its OWN payload key, its OWN timestamp location, and
+// — for heart rate — numbers encoded as STRINGS. A generic "find any numeric
+// leaf" walker silently returned null for all of them, which is why real Fitbit
+// data rendered as em-dashes. Verified against a Charge 6 on 2 Aug 2026:
+//
+//   heart-rate               heartRate.sampleTime.physicalTime  · beatsPerMinute "75"
+//   heart-rate-variability   heartRateVariability.sampleTime…   · rootMeanSquareOfSuccessiveDifferencesMilliseconds 58.4
+//   daily-resting-heart-rate dailyRestingHeartRate.date{y,m,d}  · beatsPerMinute "76"
+//   sleep                    sleep.interval.startTime/endTime
+//
+const num = (x) => {
+  const n = typeof x === 'string' ? Number(x) : x
+  return Number.isFinite(n) ? n : null
+}
+const civilDate = (d) =>
+  d && d.year ? new Date(Date.UTC(d.year, (d.month || 1) - 1, d.day || 1)).toISOString() : null
+
+// Returns { t: ISO string | null, v: number | null } for one point.
+const EXTRACTORS = {
+  'heart-rate': (p) => ({
+    t: p.heartRate?.sampleTime?.physicalTime ?? null,
+    v: num(p.heartRate?.beatsPerMinute),
+  }),
+  'heart-rate-variability': (p) => ({
+    t: p.heartRateVariability?.sampleTime?.physicalTime ?? null,
+    v: num(p.heartRateVariability?.rootMeanSquareOfSuccessiveDifferencesMilliseconds),
+  }),
+  'daily-resting-heart-rate': (p) => ({
+    t: civilDate(p.dailyRestingHeartRate?.date),
+    v: num(p.dailyRestingHeartRate?.beatsPerMinute),
+  }),
+  // This account returned zero step points, so the payload shape is unverified.
+  // Every candidate path is tried and it stays null if none match — null is the
+  // correct answer for an absent signal, and never 0.
+  'steps': (p) => {
+    const s = p.steps || {}
+    return {
+      t: s.interval?.startTime ?? s.sampleTime?.physicalTime ?? civilDate(s.date),
+      v: num(s.count ?? s.steps ?? s.value),
+    }
+  },
+  'sleep': (p) => {
+    const iv = p.sleep?.interval
+    if (!iv?.startTime || !iv?.endTime) return { t: null, v: null }
+    return { t: iv.startTime, v: (new Date(iv.endTime) - new Date(iv.startTime)) / 3.6e6 }
+  },
+}
+
+const deviceOf = (p) => p?.dataSource?.device?.displayName || p?.dataSource?.platform || 'unknown'
+
+/**
+ * Keep points from ONE source only.
+ *
+ * Google Health aggregates every writer, and a single user commonly has three
+ * for steps: the watch ("Charge 6"), Fitbit's phone-based MobileTrack, and
+ * Health Connect. Summing them triple-counts — a real 129-step morning was
+ * reported as 909. Prefer the wearable, since that is the number on the
+ * patient's wrist and the one they will check us against.
+ */
+function preferSingleSource(points) {
+  if (!Array.isArray(points) || !points.length) return points || []
+  const groups = new Map()
+  for (const p of points) {
+    const k = deviceOf(p)
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k).push(p)
   }
-  return null
+  if (groups.size <= 1) return points
+  const keys = [...groups.keys()]
+  // A named wearable beats a phone tracker or a generic aggregator.
+  const wearable = keys.find(k => !/mobiletrack|health_?connect|phone|unknown/i.test(k))
+  return groups.get(wearable || keys[0])
+}
+
+/** Extract {t,v} pairs inside the window. Absent stays absent. */
+function windowed(points, dataType, sinceMs, { singleSource = false } = {}) {
+  const ex = EXTRACTORS[dataType]
+  if (!ex || !Array.isArray(points)) return []
+  const src = singleSource ? preferSingleSource(points) : points
+  return src
+    .map(ex)
+    .filter(r => r.v != null && r.t && new Date(r.t).getTime() >= sinceMs)
 }
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
@@ -174,30 +249,51 @@ async function fetchBiometrics(uid, windowHours = 24) {
   const start = new Date(end.getTime() - windowHours * 3600 * 1000)
   const [s, e] = [start.toISOString(), end.toISOString()]
 
+  // A read that FAILS must be distinguishable from a signal that is genuinely
+  // absent, so log the reason instead of collapsing both to null in silence —
+  // that silence is what hid a 400 on every request.
+  const read = (type) =>
+    listDataPoints(accessToken, type).catch((err) => {
+      console.warn(`[googleHealth] ${type} read failed: ${err.message}`)
+      return null
+    })
+
   const [hr, hrv, restingHr, steps, sleep] = await Promise.all([
-    listDataPoints(accessToken, 'heart-rate', s, e).catch(() => null),
-    listDataPoints(accessToken, 'heart-rate-variability', s, e).catch(() => null),
-    listDataPoints(accessToken, 'daily-resting-heart-rate', s, e).catch(() => null),
-    listDataPoints(accessToken, 'steps', s, e).catch(() => null),
-    listDataPoints(accessToken, 'sleep', s, e).catch(() => null),
+    read('heart-rate'),
+    read('heart-rate-variability'),
+    read('daily-resting-heart-rate'),
+    read('steps'),
+    read('sleep'),
   ])
 
-  const nums = (arr) => (arr || []).map(numericValue).filter(n => n != null)
+  // ── Per-signal windows. One shared window is wrong for every signal here.
+  //
+  // Steps summed over a rolling 24h spans two calendar days, so the card read
+  // 0.4k while the watch face — which counts from local midnight — showed 129.
+  // A patient comparing the two sees the app as broken, and they are right to.
+  // Sleep and HRV have the opposite problem: both are produced once a night, so
+  // a 24h window frequently contains neither and renders as "—".
+  const vals = (points, type, sinceMs, opts) => windowed(points, type, sinceMs, opts).map(r => r.v)
 
-  const hrVals   = nums(hr)
-  const hrvVals  = nums(hrv)
-  const restVals = nums(restingHr)
-  const stepVals = nums(steps)
+  const localMidnight = new Date()
+  localMidnight.setHours(0, 0, 0, 0)
+  const SINCE = {
+    live:  start.getTime(),                            // HR — the requested window
+    today: localMidnight.getTime(),                    // steps — match the watch face
+    night: end.getTime() - 36 * 3600 * 1000,           // HRV — produced overnight
+    sleep: end.getTime() - 48 * 3600 * 1000,           // most recent night, not always last night
+    daily: end.getTime() - 48 * 3600 * 1000,           // resting HR — daily aggregate
+  }
 
-  // Sleep is a set of sessions; total the durations.
-  const sleepHours = Array.isArray(sleep) && sleep.length
-    ? sleep.reduce((sum, p) => {
-        const st = p.startTime || p.start
-        const en = p.endTime || p.end
-        if (!st || !en) return sum
-        return sum + (new Date(en) - new Date(st)) / 3.6e6
-      }, 0)
-    : null
+  const hrVals   = vals(hr,        'heart-rate',              SINCE.live)
+  const hrvVals  = vals(hrv,       'heart-rate-variability',  SINCE.night)
+  const restVals = vals(restingHr, 'daily-resting-heart-rate', SINCE.daily)
+  // singleSource: steps are the one signal several writers duplicate.
+  const stepVals = vals(steps,     'steps',                   SINCE.today, { singleSource: true })
+
+  // Most recent night only — totalling several nights produced "28.6h slept".
+  const sleepVals  = vals(sleep, 'sleep', SINCE.sleep, { singleSource: true })
+  const sleepHours = sleepVals.length ? sleepVals[0] : null
 
   const totalSteps = stepVals.length ? stepVals.reduce((a, b) => a + b, 0) : null
 
@@ -208,8 +304,10 @@ async function fetchBiometrics(uid, windowHours = 24) {
     fetchedAt:        end.toISOString(),
     windowHours,
     heartRate:        hrVals.length   ? Math.round(mean(hrVals))            : null,
-    restingHeartRate: restVals.length ? Math.round(restVals[restVals.length - 1]) : (hrVals.length ? Math.round(mean(hrVals)) : null),
-    hrv:              hrvVals.length  ? Math.round(hrvVals[hrvVals.length - 1]) : null,
+    // Google returns points NEWEST-FIRST, so the most recent reading is [0].
+    // Taking [length-1] here silently reported the oldest value in the window.
+    restingHeartRate: restVals.length ? Math.round(restVals[0]) : (hrVals.length ? Math.round(mean(hrVals)) : null),
+    hrv:              hrvVals.length  ? Math.round(hrvVals[0]) : null,
     steps:            totalSteps != null ? Math.round(totalSteps) : null,
     sleepHours:       sleepHours != null ? Math.round(sleepHours * 10) / 10 : null,
     // Which signals the account actually granted + the device actually wrote —

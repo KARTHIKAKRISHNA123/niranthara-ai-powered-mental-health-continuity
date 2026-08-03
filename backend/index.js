@@ -57,6 +57,8 @@
   const biometricRoutes = require('./routes/biometricRoutes')
   const assessmentRoutes = require('./routes/assessmentRoutes')
   const googleHealthRoutes = require('./routes/googleHealthRoutes')
+  const outcomeRoutes    = require('./routes/outcomeRoutes')
+  const recoveryRoutes   = require('./routes/recoveryRoutes')
 
   app.use('/api/auth',      authRoutes)
   app.use('/api/mood',      moodRoutes)
@@ -69,6 +71,8 @@
   app.use('/api/risk',      riskRoutes)
   app.use('/api/assessments', assessmentRoutes)
   app.use('/api/google-health', googleHealthRoutes)  // cloud wearable path (Fitbit via Google Health API)
+  app.use('/api/outcomes',  outcomeRoutes)          // intervention -> outcome loop
+  app.use('/api/recovery',  recoveryRoutes)         // recovery score, plan, residual symptoms
 
   // Health
   app.get('/', (req, res) => res.json({ app: 'Niranthara API v2.0', status: 'running', architecture: 'ML-first — zero hardcoding', team: 'Anna University Regional Campus, Tirunelveli' }))

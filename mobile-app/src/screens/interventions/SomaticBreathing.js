@@ -52,16 +52,20 @@ export default function SomaticBreathing({ navigation }) {
     });
   };
 
+  // 'breathing' is the canonical name from backend/utils/interventions.js. It
+  // used to say 'somatic_breathing', which the outcome engine scored as a
+  // separate, never-selected intervention type. The backend matches this
+  // completion to a pending JITAI itself, so no logId is needed here.
   const logResponse = async (responseType) => {
-    try {
-      await postData('/jitai/log-response', {
-        interventionType: 'somatic_breathing',
-        responseType: responseType,
-        sessionDurationSeconds: timer,
-        cyclesCompleted: sessionCount
-      }, 'jitaiLogs');
-    } catch (err) {
-      console.warn("Could not log JITAI response");
+    const result = await postData('/jitai/log-response', {
+      interventionType: 'breathing',
+      responseType,
+      sessionDurationSeconds: timer,
+      cyclesCompleted: sessionCount
+    }, 'jitaiLogs');
+
+    if (!result?.success) {
+      console.warn('[breathing] response not recorded:', result?.status || 'offline');
     }
     navigation.goBack();
   };

@@ -1,210 +1,273 @@
-# NIRANTHARA — MVP Demo Runbook
+# NIRANTHARA — The Demo
+**One script. One path. Rehearse this and nothing else.**
+Verified 2 Aug 2026: backend :5000 up · ai-service :8000 up · `verifyLoop.js` **44/44**.
 
-Everything needed to run the full stack and deliver the demo: startup order, smoke tests, the minute-by-minute script, and what to do when something breaks on stage. Rehearse the whole thing at least twice.
-
----
-
-## 1. One-time setup (night before)
-
-**Secrets (gitignored — must exist):**
-- `backend/serviceAccountKey.json` — Firebase Admin key
-- `backend/.env` — `PORT=5000`, `AI_SERVICE_URL=http://localhost:8000`, encryption key
-- `ai-service/.env` — `NVIDIA_API_KEY=...` (chat + AI summary), Sarvam keys (optional)
-- `dashboard/.env` — Firebase web config (`VITE_*`), `VITE_API_URL=http://localhost:5000`
-- `mobile-app/src/utils/firebase.js` — Firebase web config
-
-**Network (the #1 demo killer):**
-1. Put laptop and phone on the **same WiFi / hotspot**. A phone hotspot is more reliable than venue WiFi.
-2. Run `ipconfig`, find the IPv4 of that adapter.
-3. Set it in `mobile-app/src/utils/api.js` → `BASE_URL = 'http://<that-ip>:5000/api'`.
-4. Confirm from the phone's browser: `http://<that-ip>:5000/api/health` must return JSON. If it doesn't, allow Node through Windows Firewall (or `netsh advfirewall firewall add rule name="Niranthara" dir=in action=allow protocol=TCP localport=5000`).
-
-**Python env (once — already done on the dev machine, models cached):**
-```powershell
-cd ai-service
-uv venv .venv --python 3.11
-uv pip install -r requirements.txt --python .venv\Scripts\python.exe
-$env:PYTHONUTF8='1'; .\.venv\Scripts\python.exe download_models.py
-```
-Downloads HuggingFace models (sentinet/suicidality, indic-bert, distilroberta — several GB) and retrains the XGBoost risk model. **Do this on hotel/home WiFi, never on demo day.** (`python`/`py` are broken shims on this machine — always go through `uv` or `.venv\Scripts\python.exe`.)
-
-**Seed the demo patient** (after you have signed up one mobile user and one clinician):
-```powershell
-cd backend ; node scripts/seedTestUser.js
-```
-This links the newest mobile user to the clinician and seeds: risk profile + topFactors (SHAP panel), 2 clinician alerts, and a PHQ-9/GAD-7 trajectory (assessments chart).
-
-**Firestore indexes:** click through the app once (dashboard patient list, mood history). If backend logs print index-creation URLs, click each once and wait for "Enabled" in the Firebase console.
+> **Never say these — they don't exist.** Recovery Passport (roadmap; PDF export
+> is what exists) · "production-ready" · "real wearable data" while on Expo Go
+> (it's simulated) · "clinically validated" · "highly accurate".
+>
+> Post-demo questions: `FINAL_REVIEW_AND_PLAYBOOK.md` §A (104 of them).
 
 ---
 
-## 2. Startup order (demo day, ~5 min before)
+## The one sentence
 
-Four terminals, in this order:
+> **"Every other system tells you the patient is getting worse. Niranthara tells you whether what you did about it helped."**
 
-```powershell
-# T1 — AI service (start first: model loading takes ~1-2 min)
-cd ai-service ; $env:PYTHONUTF8='1' ; .\.venv\Scripts\python.exe -m uvicorn main:app --port 8000
-# ready when: http://localhost:8000/api/health shows risk_model_ready: true
-
-# T2 — Backend
-cd backend ; node index.js
-# ready when: "Niranthara backend running on port 5000" + "JITAI scheduler started"
-
-# T3 — Clinician dashboard
-cd dashboard ; npm run dev
-# open http://localhost:5173, log in as the clinician, keep it PROJECTED
-
-# T4 — Mobile app
-cd mobile-app ; npm start
-# Expo Go on the phone (or the EAS dev-client build), log in as the patient
-```
-
-**Smoke test (2 minutes, every time):**
-1. `http://localhost:8000/` → shows the 9-model roster.
-2. Phone: send one chat message → reply arrives in ~1-3 s tagged "Llama 3.1" (latency-first chat chain; "Minimax M2.7" means the quality backstop answered — also fine). An untagged bubble means the chain bottomed out to static fallback.
-3. Phone: Home → Sync Biometrics → card fills.
-4. Dashboard: patient visible in list with risk badge, and the browser asked for notification permission — click Allow (backgrounded-tab alerts).
+If a moment in the next eight minutes doesn't serve that sentence, it's cut.
 
 ---
 
-## 3. THE MASTER DEMO — one continuous story, every device, every capability (~8 min)
+## Accounts — read this first
 
-This is the single top-notch demo. It weaves all 28 cookbook demos (§3.5) into one narrative across three surfaces at once. **Devices on stage:** the Fitbit Charge 6 on your wrist, the Android phone in your hand (patient Ananya), the laptop projected (clinician dashboard, logged in, notifications allowed, one tab). The audience's job is to watch data travel between them.
-
-**Pre-stage (from §2):** all services warm, one chat message already sent (classifier warm-up), dashboard on the Patients page showing the pulsing "Live · Firestore onSnapshot" indicator, biometric mode set (SIMULATED recommended; REAL if the morning wrist-check passed).
-
----
-
-**ACT 1 — The invisible patient becomes visible (0:00-1:30). Devices: watch + phone.**
-
-Open on the projected caseload: "A psychiatrist sees a patient one hour a month. The other 729 hours are invisible — that's where symptoms return and patients quietly disappear. This dashboard is those 729 hours."
-
-Raise your wrist: "This Fitbit has been watching all day." Phone Home → **Sync Biometrics** → HR/HRV/steps/sleep fill the card (D4/D5). "It reads Health Connect, not Fitbit — same code for Samsung, Pixel, any wearable. Absent signals are excluded, not faked — and no single signal can ever page a clinician alone; stress alerts need corroboration." Point at the risk ring and cycle ring (D1): "a per-user LSTM forecasts her hormonal vulnerability window — most platforms treat this as noise; we model it."
-
-**ACT 2 — Clinical ground truth (1:30-2:30). Devices: phone → dashboard.**
-
-Home → **Wellbeing check** → answer the PHQ-9 to a moderate score (D8). "The validated instrument psychiatry actually uses — scored server-side, one question per screen." Result screen → switch to the projector: open her PatientDetail → **the score just landed on the assessments trajectory** (D24). "Symptom trend between visits, not a memory test at the appointment."
-
-**ACT 3 — THE MONEY SHOT (2:30-4:00). Devices: phone → projector, live.**
-
-Journal tab → mood 2/5 → type: *"I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore."* → save (D7). Narrate over the ~1s of processing: "Three transformers in parallel — sentiment, emotion, crisis — the cycle LSTM, then a 15-feature XGBoost fusion. The journal was AES-256 encrypted before it touched the database."
-
-**Do not talk over what happens next.** The alert lands on the projected dashboard in about one second. Let the room see it. Then: open the alert → PatientDetail → **Top Risk Factors** (D23): "SHAP explainability — the model shows its work. And notice the suppression signal: she *said* fine; her language didn't. Masked depression is a first-class feature here."
-
-If the dashboard tab were minimized, the OS notification still fires (D20) — mention it or show it: "the clinician doesn't need to be watching."
-
-**ACT 4 — The patient isn't alone either (4:00-5:30). Device: phone.**
-
-Back to the phone — Home now shows the **breathing card** (D14): "risk went up, so a just-in-time intervention surfaced — timed by a per-user receptivity model, not a marketing scheduler." Open **Care** → send: *"I don't know how to handle tonight."* → warm reply in seconds, model tag visible (D11). Then the stunt — type: *"what dose of sertraline should I take?"* → instant deferral (D12): "deterministic guardrail, fires before the LLM even runs — this assistant never plays doctor." Tap **Support** in the header (D13): full crisis screen — tap-to-call Tele-MANAS 14416, grounding, breathing. "Detection without response is a liability. Detection here IS response."
-
-**ACT 5 — Closing the loop (5:30-7:00). Device: projector.**
-
-PatientDetail → **Generate Summary** (D25): while it writes, point at the alert queue (D21): "this loss-of-follow-up alert came from a cron that sweeps every 15 minutes — high-risk plus three days silent. Nobody exits care unnoticed. That's the problem statement, answered by a background job." Summary appears: "thirty days — mood trend, divergence, crisis events, assessments — in five clinical sentences, built from model outputs, never raw journal text. The 15-minute visit, prepped in 30 seconds." **Resolve** the alert: "acknowledged, on the record."
-
-**CLOSE (7:00-7:30).**
-
-"Chatbots talk. Dashboards display. Niranthara closes the loop: a watch that senses, models that predict, interventions that arrive when the patient will accept them, clinicians who see it explained, and a system that notices silence. Per-patient models, explainable decisions, Indian languages. Continuity is the product."
-
----
-
-**Timing discipline:** rehearsed beats total ~32s of actual processing; the rest is your narration. If any beat fails live, the failure playbook (§4) has the recovery, and every act references its cookbook entry (§3.5) for the fallback. Cut Act 2 for a 5-minute slot; add D3 (suppression arc on phone) and D18 (airplane-mode offline log) for a 10-minute slot.
-
----
-
-## 3.5 Per-demo cookbook — how to run EVERY demo
-
-All services running per §2, phone logged in as the patient, dashboard as the clinician. Each entry: steps → expected result → recovery. Every path below was machine-verified (30 automated checks across two test suites).
-
-### Mobile — patient app
-
-**D1 · Home dashboard (risk ring, cycle ring, baseline stats).** Open the app. Expect: animated risk ring with XGBoost percentage, cycle ring, steps/sleep/mood tiles vs personal baseline. Stats show 0/— until passive data exists — sync biometrics first for a fuller screen.
-
-**D2 · SHAP narrative card.** On Home, find the colored card ("Your system is under stress" etc.), tap the chevron. Expect: plain-language narrative + top-3 AI signal breakdown. Requires one mood log ever (writes `users.topFactors`).
-
-**D3 · Emotional suppression arc.** Appears on Home only when mood-language divergence > 0.15 — log a mood of 4/5 with a clearly negative journal to trigger it. Expect: STATED vs EXPRESSED bars with a gap indicator.
-
-**D4 · Biometric sync — simulated.** Long-press the "Health Connect" title → confirm SIMULATED. Tap Sync Biometrics. Expect: card fills (HR/HRV/steps/sleep), "SIMULATED" tag. This is the recommended stage mode.
-
-**D5 · Biometric sync — real Fitbit Charge 6.** Wear the watch; open the **Google Health app (formerly Fitbit)** and let it sync; confirm data in the Health Connect app (Browse data). In Niranthara (dev-client build, not Expo Go): long-press title → REAL mode → Sync. Expect: provider tag "Fitbit", real HR/steps/sleep, HRV shows "—" (Fitbit never writes HRV to Health Connect — absent signals are excluded from scoring, not zeroed). Recovery: falls back to SIMULATED with a reason; check Health Connect app permissions for Niranthara.
-
-**D6 · Deterministic crisis biometrics (stage trigger).** Long-press "Sync Biometrics" (600 ms). Expect: HRV-crash payload through the real pipeline, stress ~0.58, "Alert sent to clinician" on the card, alert on the projected dashboard. Verified: fires every run.
-
-**D7 · THE MONEY SHOT — journal → live dashboard alert.** Journal tab → mood 2/5 → journal: "I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore." → save. Expect: risk ~0.8/high with top factors returned in ~1-2 s; the projected dashboard alert appears within ~1 s (onSnapshot). Verified: 1.2 s end-to-end.
-
-**D8 · PHQ-9.** Home → "Wellbeing check" card. One question per screen, answer all 9. Expect: score/27, severity band, result copy; score appears on the dashboard assessments chart on next load.
-
-**D9 · GAD-7.** Long-press the same Wellbeing check card (600 ms). Same flow, 7 questions, /21.
-
-**D10 · PHQ-9 item-9 protocol.** Take PHQ-9 and answer the last question (self-harm) with anything above "Not at all". Expect: result screen shows a "Support is available right now" button → opens Crisis Support; a clinician alert is created regardless of total score. Verified live.
-
-**D11 · Chat with memory.** Care tab → send 2-3 related messages. Expect: replies in ~2-8 s tagged "Llama 3.1" (or "Minimax M2.7"); later replies reference earlier ones. Kill and reopen the app → thread restores (server-side decrypt). First message after service boot is slow (classifier lazy-load) — that's what the §2 warm-up is for.
-
-**D12 · Medication guardrail (judge-proofing).** In chat, type: "what dose of sertraline should I take? should I go up to 100mg?" Expect: instant deterministic deferral ("I can't advise on medication…"), ~0.2 s — it never reaches the LLM. Verified: input-side tier fires in any language.
-
-**D13 · Crisis support screen.** Two entries: the permanent "Support" button in the chat header (always works — use this on stage), or automatic full-screen navigation when the crisis classifier scores > 0.85 (moderate distress scores ~0.45-0.50 and will NOT auto-trigger; don't lower the threshold). Expect: tap-to-call Tele-MANAS 14416 / iCall / NIMHANS, 5-4-3-2-1 grounding, breathing handoff. Works offline.
-
-**D14 · JITAI breathing card.** Appears on Home when risk > 0.5 (true after D7). Tap → guided 4·4·6 somatic breathing.
-
-**D15 · CBT reframe card.** Appears on Home when 30-day avg mood < 2.5. Tap → guided thought-reframing worksheet. If avg mood is too high to trigger, open it via the crisis screen's breathing → back → or just describe it; don't force mood logs to game the average.
-
-**D16 · Cycle screen.** Cycle tab. Expect: phase ring, vulnerability forecast. Full LSTM personalization needs period history — log a period via the screen if the ring shows day 0.
-
-**D17 · Insights.** Home → "Insights" pill. Expect: 30-day trends and weekly narrative.
-
-**D18 · Offline mode.** Airplane mode → log a mood → "saved offline" message; disable airplane mode → pull-to-refresh Home → offline queue syncs (`processOfflineSync`). Chat shows the saved-message line while offline.
-
-### Dashboard — clinician
-
-**D19 · Triage caseload.** Log in → Patients. Expect: staggered card entrance, risk-count tiles, patients sorted by XGBoost score, "Live · Firestore onSnapshot" pulsing indicator, skeleton shimmer during load.
-
-**D20 · Live alert + browser notification.** Keep the dashboard in a background tab, run D6 or D7 on the phone. Expect: OS notification (crisis alerts stay until dismissed) + nav badge count updates live. Requires clicking Allow on the permission prompt at login (§2 smoke test).
-
-**D21 · Alerts queue + resolve.** Alerts page. Expect: unresolved alerts newest-first (crisis alerts visually dominant); Resolve updates instantly. The queue was tidied to one alert per patient+type — escalation-cron alerts (loss-of-follow-up) now appear here too (bug fixed: they were invisible before).
-
-**D22 · Patient detail.** Click a patient. Expect: 30-day risk trajectory chart (risk + cycle vulnerability + crisis prob), NLP signal tiles (sentiment, emotion, crisis prob, suppression), skeleton loading.
-
-**D23 · SHAP panel.** On patient detail: "Top Risk Factors" with ranked drivers. Live for any patient with a mood log; older patients fall back to their latest log's factors.
-
-**D24 · Assessments card.** Patient detail: PHQ-9/GAD-7 trajectory chart + latest-score tiles; item-9 flags show "Item 9 flagged — review".
-
-**D25 · AI clinical summary.** Patient detail → Generate Summary. Expect: 4-5 clinical sentences from 30-day structured signals in ~5-30 s (chain: Minimax quality-first, Llama backstop — both tags are real). Regenerate button reruns it.
-
-**D26 · Flag patient + PDF export.** Sidebar: Flag Patient (modal, requires reason, toast confirm; alert appears in queue) and Export PDF (patient report with summary + factors).
-
-### Background intelligence (narrate, don't wait)
-
-**D27 · Escalation cron.** Every 15 min: crisis-prob spikes + high-risk patients inactive 3+ days → alerts (6h per-patient dedup). Point at a "loss_of_contact" alert in the queue: "nobody silently drops out of care."
-
-**D28 · JITAI scheduler.** Hourly receptivity sweep per patient (per-user XGBoost); nudges only when the model says the patient will engage. Show `jitaiLogs` on patient detail or narrate over the Home cards (D14/D15 are its visible output).
-
----
-
-## 4. Failure playbook
-
-| Failure | Symptom | Recovery |
+| Where | Log in as | Why |
 |---|---|---|
-| NVIDIA API down / no key | Chat replies with warm fallback, "fallback" tag | Say it out loud as a feature: "graceful degradation — the static fallback keeps the patient held while the cloud is unreachable." Summary card also degrades to a deterministic template. |
-| Phone can't reach backend | Chat/journal say "saved offline" | It IS the offline-first story — show it, then switch phone to hotspot, restart Expo, retry. Verify `/api/health` from the phone browser. |
-| Health Connect has no real data | Empty biometrics | Long-press the "Health Connect" title → SIMULATED mode (hidden toggle). Simulated is the recommended stage default anyway. |
-| Need a guaranteed dashboard alert | — | Long-press **Sync Biometrics** → deterministic HRV-crash through the real pipeline → alert lands on the dashboard. |
-| AI service crashed mid-demo | Journal still logs, risk uses fallback values | Mood logging never blocks on ML (Promise.allSettled). Restart T1; models are cached, ~60 s. |
-| Dashboard empty | No patients | Wrong clinician login, or seed script not run — `node scripts/seedTestUser.js` takes 10 s. |
-| Port 8000/5000 already in use on start | uvicorn exits with bind error | Zombie processes from a previous run: `Get-Process python \| Stop-Process -Force` (and `node` if 5000). Verified failure mode — stopping a wrapper shell can leave the child alive. |
-| Want the full-screen crisis navigation from chat | Chat replies but no crisis screen | Auto-navigation requires classifier prob > 0.85 — moderate distress scores ~0.45-0.50 by design. On stage either use the permanent Support button in the chat header, or the journal money-shot (alert gate is 0.5 there). Do not lower the threshold. |
-| Judges ask "what's the model trained on?" | — | Honest answer, rehearsed: risk labels are synthetic today; the architecture self-labels (dropout, JITAI, anomaly generate their own training data in weeks of a pilot), and every model ships with a naive baseline it must beat. |
+| **Phone** | `ananya.demo@niranthara.dev` | 19 mood logs, **18 PHQ-9s**, 9 measured outcomes, 67% engagement — the only patient with enough history to make the loop worth showing |
+| **Dashboard** | `meena.clinician@niranthara.dev` | Ananya is on her caseload |
+| **Google consent screen** | **your own Google account** | See below |
 
-**Golden rules:** hotspot over venue WiFi · simulated biometrics on stage · never demo anything you haven't run that morning · if a step dies, narrate the architecture while you recover — the fallbacks are part of the design.
+> **The `demo_patient_*` accounts cannot be logged into.** Karthik, Priya and
+> Rahul exist only as Firestore documents — no Firebase Auth record. Earlier
+> drafts of this script used Karthik on the dashboard, which would have put a
+> different patient on the phone than on the projector.
+
+**Your real Fitbit, on Ananya's record.** The OAuth callback binds the token to
+`verifyState(state)` — the *Niranthara* uid — not to the Google account. So:
+log into the app as **Ananya**, tap **Connect Fitbit via Google Health**, and on
+Google's consent screen sign in with **your personal Google account**. Your real
+watch data lands on Ananya's uid. You get the rich clinical history *and* live
+data off your wrist.
+
+If asked, the honest phrasing is: *"That's my own watch, connected to the demo
+patient account."* Never imply the wearable data was collected from a real patient.
 
 ---
 
-## 5. What was added for the MVP (talking points)
+## T−30 minutes
 
-| Addition | Where | One-liner for judges |
+```bash
+cd ai-service && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn main:app --port 8000   # first, models load ~90s
+cd backend   && node index.js          # RESTART after any code edit — Node does not hot-reload
+cd dashboard && npm run dev            # project this
+cd mobile-app && npx expo start
+```
+
+Then, in order:
+1. `:8000/api/health` → `risk_model_ready: true`
+2. Send **one** chat message from the phone — warms the crisis classifier (first call otherwise costs ~40s)
+3. Metro shows `[api] backend reachable at …` — **never hand-edit `BASE_URL`**, it derives itself
+4. Dashboard: log in, **Allow** notifications, open **Ananya**, confirm the Recovery panel renders
+5. **Close the Firebase console.** Seeded docs are visible in it
+6. Phone at full brightness, notifications on, Do Not Disturb off
+7. **`node scripts/checkWearable.js`** — this decides one line of your script:
+
+```bash
+cd backend && node scripts/checkWearable.js
+```
+
+| Verdict | The line you are allowed to say at 0:40 |
+|---|---|
+| `REAL wearable data` | **"This is my own watch, connected to the demo account."** |
+| `only SIMULATED data` | **"Simulated here — identical code path to the real device."** |
+| `no recent sync` | Tap Sync on the phone, then re-run |
+
+**Never say "my watch" over `source: simulation`.** It is the one thing in this
+demo that could be dishonest by accident, and a judge who later sees the source
+field has caught you lying about the only thing that was easy to check.
+
+8. **Clear today's recovery plan for Ananya** so the safety floor fires *because
+of what you do on stage*, not from a state that already existed:
+
+```bash
+cd backend && node -e "require('./config/firebase').db.collection('recoveryPlans').doc('fsm6TxHaO7YnqLz3r0RpreAZ6qG3_'+new Date().toISOString().slice(0,10)).delete().then(()=>{console.log('plan cleared');process.exit(0)})"
+```
+
+*(Plans are persisted per day with their selection, so without this the panel
+replays this morning's `explore` choice instead of the `safety_floor` your live
+journal entry triggers.)*
+
+---
+
+## The script
+
+*Speak the bold. Brackets are stage directions.*
+
+### 0:00 — 0:40 · The gap
+**Dashboard caseload, projected.**
+
+> **"A patient with depression sees their clinician about an hour a year. The other eight thousand seven hundred and fifty-nine hours are invisible — and that's where recovery is actually decided."**
+>
+> *[gesture at the list]*
+>
+> **"This is a caseload, ordered by risk. By the end of this demo, the interesting column won't be risk. It'll be whether treatment is working."**
+
+*Don't open with your stack. Nobody remembers a stack.*
+
+### 0:40 — 1:30 · The invisible hours, made physical
+**Phone → Home → Sync.** *[raise your wrist first]*
+
+> **"Those hours aren't empty — they're just unmeasured."**
+>
+> *[tap Sync, let the card fill]*
+>
+> **"Heart rate, sleep, steps — pulled through Google Health, so the same code works for Fitbit, Samsung, Pixel, any device."**
+>
+> *[point at the HRV field]*
+>
+> **"And look at HRV. It's blank. Fitbit doesn't publish HRV to Health Connect, so we store it as null — never as zero. A zero would read as maximum deviation and page a clinician for a device limitation. Absent signals are excluded from the score and the remaining weights renormalise."**
+>
+> **"No single signal can raise an alert on its own either. Stress alerts need at least two corroborating signals."**
+
+> ⚠ **Say the line `checkWearable.js` licenses you to say.** Real data → *"this is
+> my own watch, connected to the demo account."* Simulated → *"simulated here —
+> identical code path."* Both are strong; only one of them can be false.
+>
+> ⚠ **Do not promise an alert from your real watch.** You are presumably healthy,
+> so your genuine HR/sleep/steps will sit near baseline and correctly fire
+> nothing — the ≥2-signal gate is doing its job. The alert beats in this demo come
+> from the **journal** at 3:20 and, if you need one here, the **long-press on Sync
+> Biometrics**, which sends all four signals and lands ~0.58 against the 0.55 gate.
+> Real data proves the *pipe*; the trigger proves the *alert*. Say which is which.
+
+*Why this is second: it makes the 8,759 hours physical, and if anything misfires
+you are ninety seconds in with the whole demo still ahead of you. The judge-facing
+point is the **null**, not the numbers — any team can show a heart rate.*
+
+### 1:30 — 2:20 · Prove the AI is real
+**Phone → Chat.**
+
+> **"First — is any of this real? Watch."**
+>
+> *[type]* `I don't want to be here anymore` *[send]*
+>
+> **"That's a suicidality classifier running locally. Benign text scores eight ten-thousandths. That sentence scores point nine nine. And we know it's real because we replaced the previous model after finding it returned the same constant for every input — crisis detection had never once fired."**
+
+*Credibility banked early. That's why this is second, not last.*
+
+### 2:20 — 3:20 · Tamil, then the guardrail
+**Stay in Chat.**
+
+> **"Tamil Nadu. Half our users won't type in English."**
+>
+> *[type]* `enakku saavanum nu thonuthu`
+>
+> **"Romanised Tamil. Our classifier is English-only — so we detect the language, translate through Sarvam, then classify. Without that step this scores point zero zero eight. With it, point nine six. That's the difference between an alert and silence."**
+>
+> *[type]* `what dose of sertraline should I take?`
+>
+> **"Instant deferral. And this one matters: we probed both language models directly with the guardrails switched off, and both of them answered with a dose. The system prompt does not make it safe. That deterministic check does."**
+
+*Hard stop at 3:20 — this section is now 60 seconds, not 75. It will tempt you to over-explain; the wearable beat took the time.*
+
+### 3:20 — 4:15 · The money shot
+**Phone → Journal.**
+
+> **"Now the signal this whole project exists for."**
+>
+> *[set mood to **5 out of 5** — say it aloud as you do]*
+>
+> **"She's telling us she's fine. Five out of five."**
+>
+> *[type]* `I keep telling everyone I'm fine but I can't get out of bed and nothing matters anymore` *[save]*
+>
+> *[**STOP TALKING. Look at the projector. Count three.**]*
+>
+> **"She said fine. Her language didn't."**
+>
+> *[open the alert → Top Risk Factors]*
+>
+> **"Stated mood against expressed sentiment. The gap is the clinical signal — that's minimisation, and it's exactly what a fifteen-minute appointment misses."**
+
+> ⚠ **Mood 5/5, not 2/5.** Five gives divergence **0.929**. Two gives 0.303 and
+> quietly contradicts your own sentence.
+>
+> ⚠ **Do not talk during the pause.** The silence is the demo.
+
+### 4:15 — 4:40 · Say the hard thing first
+**Stay on the alert.**
+
+> **"Before anyone asks — the risk model behind that score is trained on six hundred rows of synthetic data. It demonstrates the pipeline, not clinical accuracy, and we won't claim otherwise. What I'm about to show you is measured on real interaction data. That's the part we're asking you to judge."**
+
+*Flat delivery. No apology. This is the highest-leverage thirty seconds you have —
+volunteered it makes everything after it credible; extracted later it makes
+everything before it suspect.*
+
+### 4:40 — 6:20 · The loop
+**Dashboard → Patient Detail → Recovery panel.**
+
+> **"Every system here predicts risk. This is the part nobody builds."**
+>
+> *[the ring]* **"Recovery score, thirty. Risk is ninety-seven. Those disagree — and they're supposed to. Risk predicts the future. Recovery measures observed progress against this patient's own baseline. It is not a hundred minus risk."**
+>
+> *[the components]* **"Every component is shown. Engagement sixty-seven percent — she's doing the work. Adherence fifty. But her PHQ-9 went from eight to seventeen. She is engaging, and getting worse."**
+>
+> *[the table]* **"Four interventions tried. Every single one says 'not reported'. n equals three, one, two, three. Below four observations we refuse to publish an effect size, and what we do publish is shrunk toward the population mean, so a few lucky observations can't crown a winner."**
+>
+> *[the flag]* **"And there it is. Deterioration despite intervention. Engaged, adherent, not improving — that is the exact phrase in the problem statement, produced from data rather than written by us."**
+
+*Give this the full 105 seconds. It's why you're on stage.*
+
+### 6:20 — 7:00 · The safety floor
+**Next-intervention card.**
+
+> **"Here's what the loop chose next. Grounding — selection mode, 'safety floor'. The journal entry I just wrote pushed her crisis probability over the threshold, so the floor overrode everything the system had learned about what works for her."**
+>
+> **"An optimiser is never allowed to decide not to ground someone in crisis. There's a second floor too: below twenty-five percent engagement it de-escalates to the lowest-effort action, because a patient who's withdrawing can't be helped by a harder ask."**
+>
+> **"And every choice records why. Any decision here can be audited after the fact."**
+
+### 7:00 — 7:35 · Continuity
+**Alerts.**
+
+> **"Third clause — loss of follow-up. This alert was generated by a scheduler, not by me. It runs every fifteen minutes looking for patients who've gone quiet. Nobody exits care silently."**
+>
+> *[Generate Summary]* **"Thirty days of structured signals. Never raw journal text — the summary model only ever sees aggregates."**
+>
+> *[Resolve]*
+
+### 7:35 — 8:00 · Close
+*[step away from the laptop. Look at them.]*
+
+> **"Chatbots talk. Dashboards display. Niranthara closes the loop — and then measures whether closing it helped."**
+
+*[Stop. Add nothing.]*
+
+---
+
+## Delivery
+
+**Three pauses, and only three:** three seconds after *"Her language didn't."* ·
+one second after the synthetic-data line · complete silence after the close.
+
+**Stand** beside the projector, angled at the judges. Never behind the laptop.
+**Look** at judges when you claim, at the screen only when you point.
+**Interrupted?** Stop, answer in one sentence, then *"— and that's what's on screen next."* Never "I'll get to that."
+**Don't know?** *"I don't know — I'd have to check."* Judges respect it. Improvising is where teams lose.
+
+---
+
+## If something breaks
+
+| Breaks | Do | Say |
 |---|---|---|
-| PHQ-9 / GAD-7 flow | mobile Assessment.js, `/api/assessments` | Validated instruments anchor the ML to clinical ground truth |
-| Item-9 self-harm alert | assessmentRoutes.js | Standard PHQ-9 protocol: any non-zero item 9 alerts the clinician regardless of total |
-| Crisis support screen | mobile CrisisSupport.js | Detection without response is a liability — helplines, grounding, breathing, offline-capable |
-| LLM output guardrail | nvidia_client.py | System-prompt hardening + deterministic dosing check — the assistant never plays doctor |
-| AI clinical summary | `/api/chat/summary` + dashboard card | 30 days → 5 sentences, from structured signals only — raw journals never leave encryption |
-| Live SHAP panel | moodRoutes + PatientDetail | Every risk score arrives with its top drivers — explainability by default |
+| Crisis doesn't fire | Long-press **Sync Biometrics** — same pipeline, deterministic | "Let me trigger that through the biometric path." |
+| **Wearable sync fails or is empty** | Long-press the "Health Connect" title to force simulated mode, then Sync | "I'll run it in simulated mode — same pipeline, and it's the null-handling I want you to see anyway." |
+| **Google Health returns nothing** | Don't debug on stage. Switch to simulated and continue | "Cloud sync is empty right now — here's the on-device path." |
+| Chat returns an untagged reply | Keep going | "The model chain bottomed out and the patient still got an answer. That's the design." |
+| AI service down | Dashboard only | "Risk falls back to a labelled default; the check-in still saves. It degrades, it doesn't fail." |
+| Phone unreachable | Drop the phone entirely — the loop is dashboard-side | Say nothing. Move. |
+| Everything down | `node scripts/verifyLoop.js` on the projector | "Then let me show you the thing I'd most want you to see anyway." |
+
+Forty-four passing assertions is a better demo than most working apps. That's your floor.
+
+---
+
+## Verdict
+
+**8.5 / 10 · Finals very likely · First prize realistic.**
+
+The entire delta is one behaviour: whether the synthetic-data disclosure comes from
+you at 4:15, or from a judge at 7:00. Same fact, opposite outcomes.
+
+Rehearse four things: **the 4:15 disclosure until it's boring · the three-second silence ·
+setting mood to 5 · and the wearable line `checkWearable.js` licensed you to say.**

@@ -8,6 +8,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COLORS, FONTS, RADIUS } from '../theme/theme';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,7 @@ import ChatScreen             from '../screens/Chat';
 import CycleScreen            from '../screens/Cycle';
 import InsightsScreen         from '../screens/Insights';
 import CBTReframeScreen       from '../screens/interventions/CBTReframe';
+import RecoveryScreen         from '../screens/Recovery';
 import SomaticBreathingScreen from '../screens/interventions/SomaticBreathing';
 import CrisisSupportScreen    from '../screens/CrisisSupport';
 import AssessmentScreen       from '../screens/Assessment';
@@ -53,6 +55,13 @@ function MainTabs() {
   const { dbUser } = useAuth();
   const showCycle  = tracksCycle(dbUser);
 
+  // The tab bar used fixed height/padding, so on devices with an on-screen
+  // system navigation bar (Samsung 3-button) the Android buttons sat directly
+  // on top of the tab labels. Adding the real bottom inset lifts the bar clear
+  // of it on every device instead of guessing a constant.
+  const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -74,8 +83,8 @@ function MainTabs() {
           borderTopWidth:  1,
           elevation:       0,
           shadowOpacity:   0,
-          height:          TAB_HEIGHT,
-          paddingBottom:   TAB_PAD_BTM,
+          height:          TAB_HEIGHT + bottomInset,
+          paddingBottom:   TAB_PAD_BTM + bottomInset,
           paddingTop:      TAB_PAD_TOP,
         },
 
@@ -139,6 +148,7 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs"         component={MainTabs} />
             <Stack.Screen name="Insights"         component={InsightsScreen} />
+            <Stack.Screen name="Recovery"         component={RecoveryScreen} />
             <Stack.Screen name="SomaticBreathing" component={SomaticBreathingScreen} />
             <Stack.Screen name="CBTReframe"       component={CBTReframeScreen} />
             <Stack.Screen name="CrisisSupport"    component={CrisisSupportScreen} options={{ animation: 'fade', animationDuration: 200 }} />

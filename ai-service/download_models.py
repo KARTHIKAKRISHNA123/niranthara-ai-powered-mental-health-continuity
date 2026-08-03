@@ -21,10 +21,18 @@ print("\n[2/3] Downloading emotion detector (j-hartmann/emotion-english-distilro
 pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=None)
 print("✓ Emotion model ready")
 
-print("\n[3/3] Downloading IndicBERT Tamil/English sentiment (ai4bharat/indic-bert)...")
-AutoTokenizer.from_pretrained("ai4bharat/indic-bert")
-AutoModelForSequenceClassification.from_pretrained("ai4bharat/indic-bert", num_labels=3)
-print("✓ IndicBERT ready")
+# Do NOT revert to ai4bharat/indic-bert. Same trap as the crisis model above: it
+# is a base ALBERT LM with no classification head, so `num_labels=3` mints a
+# random one and every input scores a constant ~0.338 — which silently destroyed
+# the mood-sentiment divergence signal that moodRoutes derives from it.
+SENTIMENT_MODEL = os.getenv("SENTIMENT_MODEL", "cardiffnlp/twitter-xlm-roberta-base-sentiment")
+print(f"\n[3/4] Downloading multilingual sentiment ({SENTIMENT_MODEL})...")
+AutoTokenizer.from_pretrained(SENTIMENT_MODEL)
+_sent = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_MODEL)
+assert not all(str(v).lower().startswith("label_") for v in _sent.config.id2label.values()), (
+    f"{SENTIMENT_MODEL} has no trained head — its labels are {_sent.config.id2label}"
+)
+print(f"✓ Sentiment model ready — labels {_sent.config.id2label}")
 
 print("\n[4/4] Training XGBoost risk model (generates synthetic dataset)...")
 from models.model_trainer import train

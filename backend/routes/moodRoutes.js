@@ -52,9 +52,17 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
     }
 
     // Step 3 — Mood-sentiment divergence (suppression signal)
-    const moodPos = 1 - ((Number(moodScore || 3) - 1) / 4)
-    const sentPos = 1 - nlpResults.sentimentScore
-    const divergence = Math.abs(moodPos - sentPos)
+    //
+    // BOTH terms must sit on the SAME polarity scale (higher = more negative).
+    // They did not: `moodPos` was mood negativity while `1 - sentimentScore` was
+    // language POSITIVITY, so the metric was inverted — it peaked for the most
+    // CONSISTENT patients (mood 1/5 + bleak journal scored 0.93) and collapsed to
+    // ~0.07 for the textbook suppression case this signal exists to catch
+    // (mood 5/5 + bleak journal). The bug was invisible while the sentiment model
+    // returned a constant ~0.338 for every input; fixing that model made it live.
+    const moodNeg = 1 - ((Number(moodScore || 3) - 1) / 4)  // 1/5 -> 1.0, 5/5 -> 0.0
+    const sentNeg = nlpResults.sentimentScore               // P(negative) from NLP
+    const divergence = Math.abs(moodNeg - sentNeg)
 
     // Step 4 — Personalized cycle vulnerability (LSTM)
     const cycleRes = await ai.get(`/api/cycle/predict/${uid}`, { timeout: 8000 })
@@ -124,6 +132,13 @@ router.post('/log', nlpLimiter, verifyToken, async (req, res) => {
     // Step 8 — Update user risk level (+ topFactors so the dashboard SHAP
     // panel reads live data — it renders patient.topFactors)
     await db.collection('users').doc(uid).update({ riskLevel: riskRes.data.riskLevel, riskScore: riskRes.data.riskScore, topFactors: riskRes.data.topFactors || [], updatedAt: new Date().toISOString() })
+
+    // Step 9 — A new check-in is the follow-up measurement for any intervention
+    // delivered in the last 72h. Recompute outcomes so effectiveness is current
+    // the moment the clinician looks. Non-blocking: the check-in must never fail
+    // because outcome bookkeeping did.
+    require('../services/outcomeService').computeOutcomes(uid)
+      .catch(e => console.warn('[moodRoutes] outcome recompute failed (non-fatal):', e.message))
 
     res.status(201).json({
       message: 'Mood logged successfully', id: logRef.id,

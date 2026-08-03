@@ -9,7 +9,7 @@
 **A psychiatrist sees a patient one hour a month. Niranthara makes the other 729 hours visible.**
 
 Passive monitoring · Just-in-time interventions · Real-time clinician risk intelligence
-*ML-first — zero hardcoding — zero keyword matching*
+*ML-first — clinical decisions come from trained models; the only deterministic rules are two labelled safety floors*
 
 [![React Native](https://img.shields.io/badge/React_Native-Expo_SDK_54-61DAFB?style=flat-square&logo=react&logoColor=61DAFB&labelColor=0d1117)](https://reactnative.dev)
 [![React](https://img.shields.io/badge/React-19_·_Vite_8-61DAFB?style=flat-square&logo=react&logoColor=61DAFB&labelColor=0d1117)](https://react.dev)
@@ -19,7 +19,7 @@ Passive monitoring · Just-in-time interventions · Real-time clinician risk int
 [![PyTorch](https://img.shields.io/badge/PyTorch-LSTM_·_Autoencoder-EE4C2C?style=flat-square&logo=pytorch&logoColor=white&labelColor=0d1117)](https://pytorch.org)
 [![XGBoost](https://img.shields.io/badge/XGBoost-15_Feature_Fusion_+_SHAP-337AB7?style=flat-square&labelColor=0d1117)](https://xgboost.readthedocs.io)
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-3_Transformer_Classifiers-FFD21E?style=flat-square&logo=huggingface&logoColor=black&labelColor=0d1117)](https://huggingface.co)
-[![NVIDIA](https://img.shields.io/badge/LLM_Chain-Llama_3.1_+_Minimax_M2.7_·_NVIDIA_Cloud-76B900?style=flat-square&logo=nvidia&logoColor=white&labelColor=0d1117)](https://build.nvidia.com)
+[![NVIDIA](https://img.shields.io/badge/LLM_Chain-Llama_3.1_+_Nemotron_3_·_NVIDIA_Cloud-76B900?style=flat-square&logo=nvidia&logoColor=white&labelColor=0d1117)](https://build.nvidia.com)
 [![Health Connect](https://img.shields.io/badge/Wearables-Health_Connect_·_Device_Agnostic-4285F4?style=flat-square&logo=google&logoColor=white&labelColor=0d1117)](https://health.google/health-connect-android/)
 
 </div>
@@ -47,19 +47,19 @@ Niranthara is a **closed loop**, not a chatbot:
 passive detection → ML risk prediction → just-in-time intervention → clinician escalation → follow-up recapture
 ```
 
-Every stage is a trained model. A smartwatch and phone sense continuously; nine ML systems score risk per-patient; interventions arrive when a per-user receptivity model says the patient will accept them; clinicians receive triaged, SHAP-explained alerts in real time; and a background sweep guarantees nobody silently exits care — which is the problem statement, answered by architecture.
+Every stage is a trained model. A smartwatch and phone sense continuously; ten ML systems score risk per-patient and measure whether acting on it helped; interventions arrive when a per-user receptivity model says the patient will accept them; clinicians receive triaged, SHAP-explained alerts in real time; and a background sweep guarantees nobody silently exits care — which is the problem statement, answered by architecture.
 
 ## 3. Key Features
 
 | # | Feature | Powered by | Surface |
 |---|---|---|---|
-| 1 | AI companion chat, multi-turn memory, context-injected (mood, cycle, risk, emotion) | Llama 3.1 8B → Minimax M2.7 chain, NVIDIA cloud | Mobile |
+| 1 | AI companion chat, multi-turn memory, context-injected (mood, cycle, risk, emotion) | Llama 3.1 8B → Nemotron-3 120B chain, NVIDIA cloud | Mobile |
 | 2 | Crisis detection on every journal and chat message | `sentinet/suicidality` | Mobile → Dashboard |
 | 3 | Two-tier medication guardrail (input question deferral + output dosing block) | Deterministic safety floor | Mobile |
 | 4 | In-app crisis support: tap-to-call Tele-MANAS 14416, grounding, breathing — offline-capable | — | Mobile |
 | 5 | PHQ-9 and GAD-7 validated assessments, one question per screen, server-scored | Item-9 self-harm protocol → clinician alert | Mobile → Dashboard |
 | 6 | Journal → 15-feature risk fusion with SHAP explainability | XGBoost + SHAP | Mobile → Dashboard |
-| 7 | Mood–language divergence (masked-depression signal) | IndicBERT sentiment vs stated mood | Both |
+| 7 | Mood–language divergence (masked-depression signal) | XLM-R sentiment vs stated mood | Both |
 | 8 | Device-agnostic wearable biometrics (Fitbit, Samsung, Pixel, any Health Connect writer) | `react-native-health-connect` | Mobile |
 | 9 | Multi-signal physiological stress score with partial-data rules and ≥2-signal alert corroboration | Personal-baseline deviations | Backend |
 | 10 | Menstrual-cycle vulnerability forecasting | Per-user PyTorch LSTM | Mobile → Dashboard |
@@ -68,10 +68,10 @@ Every stage is a trained model. A smartwatch and phone sense continuously; nine 
 | 13 | JITAI — interventions timed by per-user receptivity models (hourly sweep) | Per-user XGBoost | Backend cron |
 | 14 | Loss-of-follow-up escalation (15-minute sweep, 6h dedup) | Cron + risk state | Backend → Dashboard |
 | 15 | Real-time clinician dashboard: triaged caseload, live alerts (<1s), browser notifications | Firestore `onSnapshot` | Dashboard |
-| 16 | AI clinical summary: 30 days → 5 clinical sentences from structured signals only | Minimax M2.7 → Llama chain | Dashboard |
+| 16 | AI clinical summary: 30 days → 5 clinical sentences from structured signals only | Nemotron-3 120B → Llama chain | Dashboard |
 | 17 | Field-level AES-256-GCM encryption of journals and chat before the database | `backend/utils/encryption.js` | Backend |
 | 18 | Offline-first mobile with sync queue | AsyncStorage + NetInfo | Mobile |
-| 19 | Tamil/Tanglish understanding; replies always Latin-script (English or Tanglish) | IndicBERT + language detector | Mobile |
+| 19 | Tamil/Tanglish understanding; replies always Latin-script (English or Tanglish) | XLM-R sentiment + language detector + Sarvam | Mobile |
 | 20 | PDF patient report export, manual flagging, alert resolve workflow | jsPDF | Dashboard |
 
 ## 4. Overall Architecture
@@ -80,8 +80,8 @@ Every stage is a trained model. A smartwatch and phone sense continuously; nine 
 graph TD
   subgraph Sensing["Sensing Layer"]
     Watch[Fitbit Charge 6 or any wearable]
-    GHealth[Google Health app]
-    HC[Android Health Connect]
+    GHealth[Google Health - cloud API v4 OAuth]
+    HC[Android Health Connect - on-device, dev build only]
   end
   subgraph Clients["Client Layer"]
     Mob[Patient Mobile App - React Native Expo]
@@ -92,8 +92,8 @@ graph TD
     Crons[JITAI hourly + Escalation 15min crons]
   end
   subgraph Intelligence["Intelligence Layer"]
-    AIS[FastAPI AI Service :8000 - 9 ML routers]
-    NV[NVIDIA Cloud LLMs - Llama 3.1 + Minimax M2.7]
+    AIS[FastAPI AI Service :8000 - 10 ML routers incl. outcome]
+    NV[NVIDIA Cloud LLMs - Llama 3.1 + Nemotron-3 120B]
   end
   subgraph Data["Data Layer"]
     FS[(Firebase Firestore)]
@@ -101,7 +101,9 @@ graph TD
     FCM[Firebase Cloud Messaging]
   end
 
-  Watch -->|"BLE"| GHealth -->|"writes records"| HC -->|"native read"| Mob
+  Watch -->|"BLE"| GHealth
+  GHealth -->|"cloud: OAuth + REST v4"| BE
+  GHealth -->|"writes records"| HC -->|"native read, dev build"| Mob
   Mob -->|"HTTPS + Firebase JWT"| BE
   BE -->|"HTTP via utils aiClient"| AIS
   AIS -->|"OpenAI-compatible HTTPS"| NV
@@ -114,25 +116,25 @@ graph TD
   Dash -->|"sign in"| Auth
 ```
 
-**Why this shape:** the backend is a thin orchestration layer (auth, encryption, Firestore writes, crons) that proxies all intelligence to the AI service through a single boundary module; Firestore is the integration bus that gives the dashboard sub-second reactivity with zero polling; and the wearable path reads Health Connect — not any vendor API — so every watch brand is one adapter, not one integration.
+**Why this shape:** the backend is a thin orchestration layer (auth, encryption, Firestore writes, crons) that proxies all intelligence to the AI service through a single boundary module; Firestore is the integration bus that gives the dashboard sub-second reactivity with zero polling; and the wearable path integrates PLATFORMS, not vendors — Health Connect on-device and the Google Health API in the cloud — so every watch brand is one adapter, not one integration. Both paths converge on a single processBiometricSync(), so deviation maths and the alert gate exist once.
 
 ## 5. System Architecture
 
 ```mermaid
 flowchart LR
   subgraph MobileApp["mobile-app (Expo SDK 54)"]
-    Screens[screens: Home Chat Journal Assessment CrisisSupport Cycle Insights] --> Api[utils api.js axios + JWT interceptor]
+    Screens[screens: Home Chat Journal Assessment CrisisSupport Cycle Insights Recovery] --> Api[utils api.js axios + JWT interceptor]
     HCsvc[services HealthConnectService] --> Api
     Sync[services syncService offline queue] --> Api
   end
   subgraph Backend["backend (Express 5)"]
-    Routes[9 route files] --> MW[verifyToken + authorize + rateLimiter]
+    Routes[13 route files] --> MW[verifyToken + authorize + rateLimiter]
     Routes --> Enc[utils encryption AES-256-GCM]
     Routes --> AIC[utils aiClient - single AI boundary]
     Sched[jitaiScheduler + escalationCron] --> AIC
   end
   subgraph AIService["ai-service (FastAPI)"]
-    Routers[9 routers: chat crisis sentiment emotion predict dropout cycle jitai anomaly]
+    Routers[10 routers: chat crisis sentiment emotion predict dropout cycle jitai anomaly outcome]
     Routers --> HF[HuggingFace pipelines]
     Routers --> XGB[XGBoost pkl + SHAP]
     Routers --> Torch[Per-user LSTM and autoencoder pt or pkl]
@@ -153,15 +155,15 @@ flowchart LR
 
 | Technology | Version | Category | Purpose in Project | Why Chosen | Key Features Used |
 |---|---|---|---|---|---|
-| FastAPI | 0.110.0 | ML serving framework | 9 routers exposing every model as REST | Async-native, Pydantic validation, auto OpenAPI docs at `/docs` | Routers, Pydantic v2 models, startup events (model warm-up) |
+| FastAPI | 0.110.0 | ML serving framework | 10 routers exposing every model as REST | Async-native, Pydantic validation, auto OpenAPI docs at `/docs` | Routers, Pydantic v2 models, startup events (model warm-up) |
 | PyTorch | ≥2.6.0 | Deep learning | Per-user cycle LSTMs and LSTM autoencoders (behavioral anomaly manifold) | Dynamic graphs suit per-user model training at runtime | `nn.LSTM`, state dicts persisted per uid, CPU inference |
-| transformers | ≥4.45.0 | NLP models | Crisis (`sentinet/suicidality`), emotion (`distilroberta`), sentiment (IndicBERT) pipelines | Pretrained clinical/multilingual checkpoints, zero training required | `pipeline()`, `AutoTokenizer`, lazy load + boot warm-up |
+| transformers | ≥4.45.0 | NLP models | Crisis (`sentinet/suicidality`), emotion (`distilroberta`), sentiment (`cardiffnlp/twitter-xlm-roberta-base-sentiment`) pipelines | Pretrained clinical/multilingual checkpoints, zero training required | `pipeline()`, `AutoTokenizer`, lazy load + boot warm-up |
 | XGBoost | ≥2.1.0 | Gradient boosting | 15-feature risk fusion, dropout classifier, per-user JITAI receptivity | Tabular SOTA, fast CPU inference, SHAP-compatible | `predict_proba`, multiclass softprob, pkl persistence |
 | SHAP | ≥0.50.0 | Explainability | Top-3 risk drivers on every prediction, dashboard + mobile panels | Model-honest attributions clinicians can defend | `TreeExplainer`, version-normalized via `_select_class_shap()` |
 | openai (SDK) | ≥1.12.0 | LLM client | NVIDIA's OpenAI-compatible endpoint (`integrate.api.nvidia.com`) | One SDK, any provider; `max_retries=0` because the model chain is the retry strategy | `AsyncOpenAI`, per-request `timeout`, chat completions |
 | scikit-learn | ≥1.6.0 | ML utilities | Train/test splits, metrics, scalers for trainers | Standard tooling | `train_test_split`, `StandardScaler`, CV metrics |
 | pandas / numpy | ≥2.2.3 / ≥2.1.0 | Data | Feature engineering, synthetic training data | Ubiquitous | DataFrames, vectorized ops |
-| sentencepiece / protobuf | ≥0.2.0 / ≥4.25.0 | Tokenization | IndicBERT (ALBERT) tokenizer backend | Required by the checkpoint | — |
+| sentencepiece / protobuf | ≥0.2.0 / ≥4.25.0 | Tokenization | XLM-R (SentencePiece) tokenizer backend | Required by the checkpoint | — |
 | uvicorn | 0.27.0 | ASGI server | Serves FastAPI | Standard | `--port 8000` |
 | python-dotenv | 1.0.0 | Config | Loads `NVIDIA_API_KEY` **before router imports** (import-time read) | 12-factor | `load_dotenv()` at top of `main.py` |
 | httpx / psutil | 0.26.0 / ≥5.9.8 | HTTP client / system | Sarvam STT calls; system stats | — | — |
@@ -211,17 +213,17 @@ flowchart LR
 | Model | Role | Budget | Why |
 |---|---|---|---|
 | `meta/llama-3.1-8b-instruct` | **Chat primary** (`NVIDIA_CHAT_MODEL`) | 12s (`NVIDIA_CHAT_TIMEOUT`) | ~1–2s measured replies — conversation is latency-first |
-| `minimaxai/minimax-m2.7` | **Summary primary** + chat quality backstop (`NVIDIA_MODEL`) | 25s (`NVIDIA_PRIMARY_TIMEOUT`) | Reasoning model; best clinical-register writing; 20–60s latency acceptable behind a button, not in chat |
+| `nvidia/nemotron-3-super-120b-a12b` | **Summary primary** + chat quality backstop (`NVIDIA_MODEL`) | 15s (`NVIDIA_PRIMARY_TIMEOUT`) | ~4.5s measured. Replaced `minimaxai/minimax-m2.7`, which now returns **HTTP 410 Gone**; its successor minimax-m3 measured 36.8s for "Say OK" — unusable inside the 45s backend budget |
 | Rotating static fallbacks | Last resort, explicitly labeled `fallback_*` | — | The patient is never left unanswered |
 
 Guardrails (deterministic, labeled safety floor — not clinical decisions): `is_dosing_question()` defers medication-dose questions **before** the LLM runs (language-proof); `apply_output_guardrail()` blocks dosing advice in replies. Client created with `max_retries=0` — the chain is the retry strategy (SDK retries multiplied a 25s budget into a measured 80s).
 
-## 7. The Nine ML Systems
+## 7. The Ten ML Systems
 
 | # | Router | Model | Input → Output | Personalization |
 |---|---|---|---|---|
 | 1 | `crisis.py` | `sentinet/suicidality` | text → crisis probability | population |
-| 2 | `sentiment.py` | `ai4bharat/indic-bert` | text (English/Tamil/Tanglish) → polarity + language | population |
+| 2 | `sentiment.py` | `cardiffnlp/twitter-xlm-roberta-base-sentiment` | text (English/Tamil/Tanglish) → polarity + language | population |
 | 3 | `emotion.py` | `j-hartmann/emotion-english-distilroberta-base` | text → 7-emotion distribution | population |
 | 4 | `predict.py` | XGBoost (15 features) + SHAP | mood, sentiment, crisis prob, divergence, cycle vulnerability, anomaly score, biometrics… → risk score/level + top factors | population model, per-patient features |
 | 5 | `dropout.py` | XGBoost classifier | engagement recency/frequency → dropout probability | population |
@@ -229,6 +231,41 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
 | 7 | `jitai.py` | XGBoost | hour, day, activity recency, mood → receptivity score | **one model per user** |
 | 8 | `anomaly.py` | LSTM autoencoder | 7-day behavioral window → reconstruction-error anomaly score | **one model per user** |
 | 9 | `chat.py` | LLM chain (above) + crisis gate | message + live context + history → guarded reply | context-personalized |
+| 10 | `outcome.py` | Shrunk means + bounded selection + OLS | measured outcomes → next intervention + rationale; PHQ-9 series → trajectory | **per-user effectiveness** |
+
+### The outcome → learning loop (what the other nine feed)
+
+Nine systems above answer *"how bad is it"*. The tenth answers *"did what we did
+help"*, and it is the only one whose inputs are **real measured patient data**.
+
+```
+intervention delivered ─▶ engagement ─▶ proximal mood delta (72h) ─▶ distal PHQ-9 delta
+        ▲                                                                    │
+        └── choose_intervention()  ◀── shrunk per-type effectiveness ◀────────┘
+```
+
+- `backend/services/outcomeService.js` pairs each delivery with what happened next,
+  written idempotently to `interventionOutcomes`.
+- `backend/services/recoveryService.js` turns that into a **recovery score**
+  (weighted composite, every component exposed), **residual-symptom detection**
+  (PHQ-9 items ≥2 with total <10) and a **daily plan** of at most five goals.
+- `ai-service/routers/outcome.py` selects the next intervention and classifies the
+  PHQ-9 trajectory, emitting the plateau flag that names the problem statement.
+
+**Two rules that must not be softened.** Effectiveness is a *shrunk* mean —
+`(n·user + 3·population) / (n + 3)` — reporting `confidence: insufficient` below
+n = 4, so a raw mean is never presented as an effect. And selection sits behind
+two hard floors: `crisisProbability > 0.75` → `grounding`, and
+`engagementRate < 25%` → `checkin_nudge`.
+
+**On exploration, stated precisely:** the selector *does* explore and reports
+`selectionMode: "explore"`. It is not reinforcement learning — no policy, no
+value function, no reward propagation, no unbounded search. Exploration is one
+Gaussian perturbation scaled by `1/√(n+1)`, so it decays as evidence accumulates,
+and the floors mean it never happens on a patient in crisis or disengaging.
+
+Verified end-to-end by `node backend/scripts/verifyLoop.js` — **44 assertions**,
+run against real service functions with no seeding shortcuts.
 
 **Honesty note:** risk and dropout models are trained on synthetic data today. The architecture self-labels in production — JITAI logs engagement outcomes, dropout labels itself in 21 days, assessments anchor risk labels — which is the retraining strategy, not a claim of clinical validation.
 
@@ -250,7 +287,7 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
    → validateMoodLog (utils/validators)
 5. STEP 1 — utils/encryption.js encrypt(journalText)  [AES-256-GCM, IV + auth tag]
 6. STEP 2 — utils/aiClient.js fan-out, Promise.allSettled (any failure degrades, never blocks):
-   → POST /api/sentiment/analyze  (IndicBERT)
+   → POST /api/sentiment/analyze  (XLM-R sentiment)
    → POST /api/emotion/detect     (distilroberta)
    → POST /api/crisis/detect      (sentinet/suicidality)
 7. STEP 3 — mood–sentiment divergence computed (masked-depression signal)
@@ -264,6 +301,11 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
     → best-effort FCM push to clinician device
 11. STEPS 7–8 — moodLogs doc (encrypted journal + NLP results + features)
     → users doc updated: riskLevel, riskScore, topFactors (feeds SHAP panels)
+11b. STEP 9 — outcomeService.computeOutcomes(uid), non-blocking: this check-in is the
+    follow-up measurement for any intervention delivered in the last 72h
+    → interventionOutcomes docs (moodDelta, phqDelta, engagement) recomputed idempotently
+    → feeds effectivenessFor() → the next intervention choice. The check-in NEVER fails
+      because outcome bookkeeping did.
 12. REAL-TIME FAN-OUT — dashboard/src/hooks/usePatients.js useAlerts onSnapshot fires
     → alert renders in the queue <1s · browser Notification fires if tab backgrounded
 13. RESPONSE — mobile receives riskScore/level/topFactors → Home SHAP narrative card updates
@@ -285,7 +327,7 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
      raw journal/chat text never leaves encryption
 4. AI SERVICE — POST /api/chat/summary (via aiClient, 45s ceiling)
    → chat.py SummaryRequest (Pydantic) → nvidia_client.generate_clinical_summary()
-   → chain: Minimax M2.7 (25s, temp 0.3, clinical register) → Llama 3.1 (10s) → deterministic template
+   → chain: Nemotron-3 Super 120B (15s, temp 0.3, clinical register) → Llama 3.1 (10s) → deterministic template
 5. RESPONSE — { summary, modelUsed } → card renders with the model attribution
    ERROR PATH: chain bottoms out → labeled template summary from the same stats — the button never breaks.
 ```
@@ -293,17 +335,31 @@ Guardrails (deterministic, labeled safety floor — not clinical decisions): `is
 ## 9. Data Flow
 
 ```
-SENSING     watch → Google Health app → Health Connect (on-device store)
-            → HealthConnectService.fetchBiometrics(): per-vendor records normalized;
-              absent signals = null (never fabricated); provider identified from dataOrigin
+SENSING     TWO ingest paths, ONE pipeline — both call processBiometricSync():
+            (a) CLOUD  watch → Google Health → Google Health API v4 (OAuth, no native
+                module, works in Expo Go and on any Android device)
+            (b) DEVICE watch → Health Connect → HealthConnectService (needs a dev build;
+                returns SIMULATED data in Expo Go)
+            Per-signal windows: HR = requested · steps = since local midnight ·
+            HRV = 36h · sleep = most recent night within 48h. Steps are read from ONE
+            source (the wearable) because three writers publish them and summing
+            triple-counts. Absent signals = null, never fabricated, never zero.
 INGESTION   → POST /passive/biometric-sync: personal-baseline deviations →
               stress score renormalized over PRESENT signals; alert needs ≥2 corroborating signals
 FEATURES    → 7-day mood context joined → 15-feature vector → XGBoost re-score
 STATE       → Firestore: biometricLogs, moodLogs, assessments, chatLogs (encrypted),
-              clinicianAlerts, jitaiLogs, users (risk snapshot + topFactors)
+              clinicianAlerts, jitaiLogs, cycleLogs, cycleDayLogs, passiveLogs,
+              googleHealthTokens (encrypted refresh token),
+              interventionOutcomes, recoveryPlans, recoveryScores,
+              users (risk snapshot + topFactors)
 REACTION    → dashboard onSnapshot (caseload, alerts) — the only real-time channel, no polling
-            → FCM push (mobile clinician) · browser Notification (backgrounded tab)
-FEEDBACK    → JITAI engagement logged → per-user receptivity model retrains
+            → browser Notification (needs the dashboard tab OPEN; the alert document is
+              written either way). Patient FCM push is wired but inert: nothing currently
+              writes users.fcmToken. Web Push to a closed browser is roadmap.
+FEEDBACK    → intervention delivered → engagement → proximal mood delta (72h) →
+              distal PHQ-9 delta → interventionOutcomes → shrunk per-type effectiveness
+              → choose_intervention() picks the next action. THE LOOP CLOSES HERE.
+            → JITAI engagement also retrains the per-user receptivity model
             → dropout self-labels at 21 days → assessments anchor risk labels
             (the system generates its own training data — the data moat)
 ```
@@ -352,7 +408,7 @@ classDiagram
   }
   class nvidia_client {
     +CHAT_MODEL: llama-3.1-8b
-    +MODEL_NAME: minimax-m2.7
+    +MODEL_NAME: nemotron-3-super-120b
     +generate_response(msg, ctx, history)
     +generate_clinical_summary(stats)
     +is_dosing_question(msg) bool
@@ -575,7 +631,7 @@ graph TD
 ```
 ├── ai-service/                  # Python 3.11 FastAPI — the intelligence layer (:8000)
 │   ├── main.py                  # loads .env BEFORE router imports; CPU pinning; startup model warm-up
-│   ├── routers/                 # 9 ML routers: chat, crisis, sentiment, emotion, predict, dropout, cycle, jitai, anomaly
+│   ├── routers/                 # 10 ML routers: chat, crisis, sentiment, emotion, predict, dropout, cycle, jitai, anomaly, outcome
 │   ├── utils/
 │   │   ├── nvidia_client.py     # LLM chain + two-tier guardrails + clinical summary
 │   │   ├── sarvam_client.py     # Tamil STT (mockable)
@@ -641,7 +697,7 @@ cd mobile-app && npx expo start --dev-client   # dev build required for Health C
 | `backend/serviceAccountKey.json` | — | Firebase Admin credentials — **boot fails without it** |
 | `ai-service/.env` | `NVIDIA_API_KEY` | LLM chain (build.nvidia.com, free tier) |
 | | `NVIDIA_CHAT_MODEL` / `NVIDIA_CHAT_TIMEOUT` | chat primary (default `meta/llama-3.1-8b-instruct`, 12s) |
-| | `NVIDIA_MODEL` / `NVIDIA_PRIMARY_TIMEOUT` | quality tier (default `minimaxai/minimax-m2.7`, 25s) |
+| | `NVIDIA_MODEL` / `NVIDIA_PRIMARY_TIMEOUT` | quality tier (default `nvidia/nemotron-3-super-120b-a12b`, 15s) |
 | | `SARVAM_API_KEY` | optional Tamil STT (mock mode without) |
 | `dashboard/.env` | `VITE_FIREBASE_*`, `VITE_API_URL` | Firebase web config + backend URL |
 | `mobile-app/src/utils/firebase.js` | — | Firebase web config |
@@ -695,7 +751,7 @@ AI-service endpoints (`:8000/api/*` — internal; called only via `backend/utils
 | Layer | Implementation |
 |---|---|
 | Authentication | Firebase Auth; every protected route runs `verifyIdToken` (`middleware/verifyToken.js`); mobile attaches the JWT via axios interceptor |
-| Authorization | `middleware/authorize.js` — self-or-assigned-clinician on all patient data (IDOR closed across 9 route files); raw chat is **self-only**, not even the assigned clinician |
+| Authorization | `middleware/authorize.js` — self-or-assigned-clinician on all patient data (IDOR closed across 13 route files); raw chat is **self-only**, not even the assigned clinician |
 | Encryption | AES-256-GCM per field (journals, chat, notes) before Firestore; unique IV + auth tag; ciphertext stripped from history responses |
 | LLM safety | Two deterministic guardrail tiers (input dosing-question deferral, output dosing block) + hardened system prompt (no diagnosis, no methods, no doctor claims); crisis classifier gates every message |
 | Privacy boundaries | Dashboard renders model-derived scores, never raw text; clinical summary consumes structured aggregates only; request logs carry no bodies/PII |
@@ -761,7 +817,7 @@ There is no unit-test suite (hackathon scope — honest). Verification is **live
 
 ## 22. Credits
 
-Built by **Team Niranthara — Anna University Regional Campus, Tirunelveli**, for an AI-in-mental-healthcare hackathon. Models: MentalRoBERTa (mental), IndicBERT (AI4Bharat), emotion-distilroberta (J. Hartmann), Llama 3.1 (Meta) and Minimax M2.7 via NVIDIA's cloud endpoint. Crisis resources surfaced in-app: **Tele-MANAS 14416 · iCall 9152987821 · NIMHANS 080-46110007**.
+Built by **Team Niranthara — Anna University Regional Campus, Tirunelveli**, for an AI-in-mental-healthcare hackathon. Models: suicidality classifier (sentinet), XLM-R sentiment (CardiffNLP), emotion-distilroberta (J. Hartmann), Llama 3.1 (Meta) and Nemotron-3 via NVIDIA's cloud endpoint. Crisis resources surfaced in-app: **Tele-MANAS 14416 · iCall 9152987821 · NIMHANS 080-46110007**.
 
 > Niranthara is a clinical decision-support and continuity tool. It augments clinicians — it never diagnoses, prescribes, or replaces professional care.
 

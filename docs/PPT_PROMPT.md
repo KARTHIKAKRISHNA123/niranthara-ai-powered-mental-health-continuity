@@ -9,6 +9,31 @@ Create a 16-slide hackathon presentation deck for NIRANTHARA, an AI mental-healt
 continuity platform built by Team Niranthara, Anna University Regional Campus,
 Tirunelveli.
 
+SLIDE TITLES — render BOTH lines on every slide.
+Line 1 is the section label: small, uppercase, letter-spaced, warm-gray #8A8076,
+in the sans face. It is the functional name a judge scans for.
+Line 2 is the headline: large, serif, charcoal. It is the argument.
+The bold, highlighted, dominant line is **line 1's subject rendered at title
+weight** only where noted; otherwise line 2 carries the visual weight.
+
+| Section label (line 1) | Headline (line 2) |
+|---|---|
+| **PROJECT SUMMARY** | Why Niranthara Exists |
+| **PROBLEM STATEMENT** | The 8,759-Hour Healthcare Gap |
+| **EXISTING SOLUTIONS** | Why Today's Mental Health Apps Fail |
+| **PROPOSED SOLUTION** | Closing the Gap Between Appointments |
+| **ARCHITECTURE** | Engineering the Continuity Platform |
+| **FEATURES** | Intelligence Behind Every Interaction |
+| **AI MODELS** | The AI That Makes Clinical Decisions |
+| **DEMO** | Niranthara in Action |
+| **IMPACT** | From Monitoring to Meaningful Intervention |
+| **FUTURE SCOPE** | Where Niranthara Goes Next |
+| **THANK YOU** | Every Hour Matters |
+
+Why both: the label lets a judge locate themselves in a 16-slide deck at a
+glance; the headline makes an argument they remember. A deck with only labels is
+a table of contents, and one with only headlines is a poem nobody can navigate.
+
 DESIGN LANGUAGE (strict):
 - Palette: warm cream background #FBF7F2 (never pure white), charcoal text #2C2826,
   rose accent #C97B84 (dark #8B4A52), lavender #9B8EC4, sage #7BA68A,
@@ -41,11 +66,26 @@ Introduce the loop diagram: passive detection → ML risk prediction →
 just-in-time intervention → clinician escalation → follow-up recapture.
 
 SLIDE 4 — SOLUTION OVERVIEW
-One diagram, three surfaces: any smartwatch (via Android Health Connect) →
-patient mobile app (React Native) → Node backend → FastAPI AI service (9 ML
-systems) → NVIDIA cloud LLMs → Firebase Firestore → clinician web dashboard
-updating in under 1 second (onSnapshot). Caption: "Every stage is a trained
-model — zero keyword matching, zero hardcoded clinical rules."
+One diagram, three surfaces: any smartwatch (cloud via the Google Health API, or
+on-device via Health Connect) → patient mobile app (React Native) → Node backend
+→ FastAPI AI service (10 ML systems) → NVIDIA cloud LLMs → Firebase Firestore →
+clinician web dashboard updating in under 1 second (onSnapshot). Caption:
+"Clinical decisions come from trained models; the only hardcoded rules are the
+two deterministic safety floors, and we label them as such."
+
+SLIDE 4b — THE LOOP NOBODY ELSE CLOSES  ← the differentiating slide, do not cut
+Every competitor stops at detection. Draw the closed circle:
+  intervention delivered → engagement → proximal mood delta (next check-in vs the
+  prior three, 72h) → distal PHQ-9 delta → per-patient effectiveness → chooses
+  the next intervention.
+Three numbers on this slide and nothing else:
+  · effectiveness is a SHRUNK mean — (n·patient + 3·population)/(n+3) — and we
+    print "insufficient evidence" below n=4 rather than an effect size
+  · a PHQ-9 OLS slope that flags PLATEAU: "engaged, adherent, not improving" —
+    the problem statement's own words, produced from data
+  · residual symptoms at PHQ-9 ITEM level (items ≥2 while the total is <10),
+    invisible to any total-score system
+Closing line: "Chatbots talk. Dashboards display. We measure whether it helped."
 
 SLIDE 5 — PATIENT APP FEATURES
 AI companion chat with multi-turn memory, context-injected with live mood/cycle/
@@ -56,25 +96,38 @@ with tap-to-call Tele-MANAS 14416, grounding, breathing; JITAI intervention
 cards timed by a per-user receptivity model; offline-first.
 
 SLIDE 6 — WEARABLE INTELLIGENCE (DEVICE-AGNOSTIC)
-Demo hardware: Fitbit Charge 6 → Google Health app → Android Health Connect →
-our adapter. Key line: "We integrate Health Connect, not Fitbit — Samsung, Pixel,
-any wearable is the same code path." Multi-signal physiological stress score
+Demo hardware: Fitbit Charge 6 → Google Health → **Google Health API (cloud,
+OAuth)** → our adapter. Verified live on 2 Aug 2026 reading a real Charge 6:
+HR 87, resting 76, HRV 58ms, sleep 8.4h. Two ingest paths share ONE pipeline —
+the cloud path (works anywhere, no native module) and on-device Health Connect
+(needs a dev build; returns simulated data in Expo Go). Key line: "We integrate
+the platform, not the vendor — Samsung, Pixel, any wearable is the same code
+path." Mention the deduplication if asked: three sources write steps (watch,
+phone tracker, aggregator) and summing them triple-counts, so we take the
+wearable only. Multi-signal physiological stress score
 (HR 30% / HRV 35% / steps 20% / sleep 15%) against PERSONAL baselines, absent
 signals excluded not zeroed, and stress alerts require 2+ corroborating signals —
 climbing stairs never pages a psychiatrist.
 
-SLIDE 7 — THE NINE ML SYSTEMS
-Table: crisis detection (MentalRoBERTa), sentiment incl. Tamil/Tanglish
-(IndicBERT), emotion (DistilRoBERTa), 15-feature risk fusion (XGBoost + SHAP
-explainability), attrition/dropout prediction (XGBoost), cycle vulnerability
-forecasting (per-user PyTorch LSTM), behavioral anomaly detection (per-user LSTM
-autoencoder), JITAI receptivity (per-user XGBoost), guarded LLM chat.
-Highlight: three of these are trained PER PATIENT.
+SLIDE 7 — THE TEN ML SYSTEMS
+Table: crisis detection (sentinet/suicidality — an ELECTRA classifier, NOT
+MentalRoBERTa, which we replaced after finding it returned a constant for every
+input), sentiment incl. Tamil/Tanglish (cardiffnlp XLM-R), emotion
+(DistilRoBERTa), 15-feature risk fusion (XGBoost + SHAP explainability),
+attrition/dropout prediction (XGBoost), cycle vulnerability forecasting
+(per-user PyTorch LSTM), behavioral anomaly detection (per-user LSTM
+autoencoder), JITAI receptivity (per-user XGBoost), guarded LLM chat, and
+**outcome learning — shrunk per-intervention effectiveness + PHQ-9 OLS
+trajectory, the only one whose inputs are real measured patient data**.
+Highlight: three are trained PER PATIENT, and one measures whether any of the
+other nine changed anything.
 
 SLIDE 8 — THE LLM CHAIN AND SAFETY
-Latency-first chain: Llama 3.1 8B primary (~1-2s replies) → Minimax M2.7
-reasoning backstop → labeled static fallback; clinical summaries run the chain
-in reverse for quality. Two deterministic guardrail tiers: dosing questions
+Latency-first chain: Llama 3.1 8B primary (~1.3s measured) → Nemotron-3 Super
+120B backstop (~4.5s) → labeled static fallback; clinical summaries run the chain
+in reverse for quality. (Minimax M2.7 was the backstop until it returned HTTP 410
+Gone — model IDs expire, so the chain IS the resilience strategy.) Two
+deterministic guardrail tiers: dosing questions
 deferred BEFORE the LLM runs; dosing advice blocked in outputs. Every chat
 message passes the crisis classifier before generation. Line: "This assistant
 never plays doctor."
@@ -113,8 +166,13 @@ Footnote: "All software is open-source or free tier — the budget buys sensing
 hardware and demo reliability, not licenses."
 
 SLIDE 13 — HONEST LIMITS AND ROADMAP
-Left (today, said plainly): risk models trained on synthetic labels; single-host
-demo scale; no clinical validation claimed. Right (the path): the system
+Left (today, said plainly): **risk and dropout models are trained on 600 rows of
+SYNTHETIC data — they demonstrate the pipeline, not clinical accuracy**; effect
+estimates are associational, not causal (patients who complete an exercise differ
+from those who don't); crisis alerts have no guaranteed human recipient yet; chat
+text reaches the LLM vendor in plaintext; single-host demo scale; no clinical
+validation claimed. State the synthetic-data limit OUT LOUD before a judge asks —
+volunteered it earns credit, extracted it costs the whole deck. Right (the path): the system
 self-labels in production (JITAI engagement, 21-day dropout labels, PHQ-9
 anchors); V1 = consent + audit + pilot with a partner clinic; V2 = PostgreSQL/
 TimescaleDB, HealthKit, FHIR, multi-tenancy; V3 = teleconsult, federated

@@ -23,24 +23,28 @@ export default function CBTReframe({ navigation, route }) {
 
     setLoading(true);
     
-    // Save to moodLogs as supplementary clinical data
-    const payload = {
+    // Record this as a completed INTERVENTION, not as a mood check-in.
+    //
+    // It used to POST /mood/log with no mood values, so the backend defaulted
+    // them to mood 3 / energy 5 / anxiety 5 / sleep 7 — a fabricated check-in in
+    // the patient's own mood series. That synthetic 3.0 both polluted the
+    // baseline and became the "follow-up" the outcome engine scored the reframe
+    // against, so completing CBT could make its own measured effect look flat.
+    // The thought record is free text and is AES-encrypted server-side.
+    const result = await postData('/jitai/log-response', {
       interventionType: 'cbt_reframe',
-      automaticThought,
-      evidenceFor,
-      evidenceAgainst,
-      balancedThought,
+      responseType: 'feel_better',
+      content: { automaticThought, evidenceFor, evidenceAgainst, balancedThought },
       offlineSyncId: Date.now().toString()
-    };
+    }, 'jitaiLogs');
 
-    const result = await postData('/mood/log', payload, 'moodLogs');
     setLoading(false);
 
     if (result.success) {
-      Alert.alert('Saved', 'Your CBT reframe has been saved successfully.');
+      Alert.alert('Saved', 'Your thought record has been saved.');
       navigation.goBack();
     } else {
-      Alert.alert('Error', 'Could not save the CBT reframe.');
+      Alert.alert('Error', 'Could not save the thought record.');
     }
   };
 

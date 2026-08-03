@@ -30,7 +30,7 @@
 14. Backend Service
 15. AI Service — Full NLP/ML Pipeline
 16. Crisis Detection — NLP Classifier (sentinet/suicidality)
-17. Sentiment Analysis — IndicBERT
+17. Sentiment Analysis — XLM-R sentiment
 18. Emotion Detection — distilroberta
 19. Cycle Phase Prediction — Personalized LSTM
 20. Risk Prediction — XGBoost 14-Feature Fusion
@@ -393,7 +393,7 @@ Women withdraw 4-7 days before a depressive episode.
 
 Detectable in language patterns before mood decline.
 
-**ML approach:** IndicBERT semantic analysis. Not keyword counting. Understands Tamil, Tanglish, English natively. Temporal trend: stress language increasing over days.
+**ML approach:** XLM-R sentiment semantic analysis. Not keyword counting. Understands Tamil, Tanglish, English natively. Temporal trend: stress language increasing over days.
 
 **Input:** Optional open journal text field.
 
@@ -420,7 +420,7 @@ This signal does not exist in any other mental health platform.
 
 ### Trigger 8 — Life Events and Grief (NLP Event Detection)
 
-**ML approach:** IndicBERT classifies journal text for life event categories (loss, relationship, work, academic, financial). Sudden mood baseline shift after stable period. Grief-specific language patterns.
+**ML approach:** XLM-R sentiment classifies journal text for life event categories (loss, relationship, work, academic, financial). Sudden mood baseline shift after stable period. Grief-specific language patterns.
 
 ---
 
@@ -475,7 +475,7 @@ Node.js Backend (port 5000)
         v
 Python AI Service (port 8000)
         |
-        |-----> IndicBERT          --> sentiment_score
+        |-----> XLM-R sentiment          --> sentiment_score
         |-----> sentinet/suicidality     --> crisis_probability
         |-----> emotion-distilroberta --> emotion_label
         |-----> Personalized LSTM  --> cycle_vulnerability_score
@@ -613,7 +613,7 @@ Clinician dashboard alert (real-time Firestore)
   "journalLanguage":         "ta | en | tanglish",
   "symptoms":                ["headache", "cramps", "fatigue"],
   "nlpResults": {
-    "sentimentScore":        "number 0-1 — IndicBERT output",
+    "sentimentScore":        "number 0-1 — XLM-R sentiment output",
     "sentimentLabel":        "negative | neutral | positive",
     "emotionLabel":          "sadness | fear | anger | joy | neutral | disgust | surprise",
     "emotionConfidence":     "number 0-1",
@@ -821,7 +821,7 @@ PUT    /resolve-alert/:id     Resolve alert
 ### AI Service Routes (port 8000)
 ```
 POST   /api/crisis/detect     sentinet/suicidality crisis probability
-POST   /api/sentiment/analyze IndicBERT Tamil/EN sentiment
+POST   /api/sentiment/analyze XLM-R sentiment Tamil/EN sentiment
 POST   /api/emotion/detect    distilroberta 7-class emotion
 POST   /api/predict/risk      XGBoost 14-feature risk score
 POST   /api/cycle/predict     Personalized LSTM cycle vulnerability
@@ -1029,7 +1029,7 @@ ai-service/
 │   ├── __init__.py
 │   ├── chat.py               the NVIDIA model chain generative
 │   ├── crisis.py             sentinet/suicidality NLP classifier
-│   ├── sentiment.py          IndicBERT semantic analysis
+│   ├── sentiment.py          XLM-R sentiment semantic analysis
 │   ├── emotion.py            distilroberta 7-class emotion
 │   ├── predict.py            XGBoost 14-feature risk
 │   ├── cycle.py              Personalized LSTM
@@ -1157,7 +1157,7 @@ async def detect_crisis(request: CrisisRequest):
 
 ---
 
-## 17. Sentiment Analysis — IndicBERT
+## 17. Sentiment Analysis — XLM-R sentiment
 
 **Model:** ai4bharat/indic-bert
 **Why:** Trained on Indian language text including Tamil, code-mixed, and Tanglish. Understands emotional context in Indian linguistic patterns.
@@ -1456,7 +1456,7 @@ FEATURE_DESCRIPTIONS = {
     "anxiety_level_avg_7d":         "Average anxiety level this week",
     "cycle_vulnerability_score":    "Hormonal vulnerability (personalized cycle model)",
     "gps_entropy_deviation_score":  "Social activity below personal baseline",
-    "journal_sentiment_score":      "Negative sentiment in journal (IndicBERT)",
+    "journal_sentiment_score":      "Negative sentiment in journal (XLM-R sentiment)",
     "emotion_distress_score":       "Distress emotion intensity detected",
     "crisis_probability":           "Crisis signal detected (NLP classifier)",
     "app_engagement_score":         "App engagement below personal baseline",
@@ -1736,7 +1736,7 @@ def prepare_depression_features(uid, db_data):
         "steps_deviation_score":        np.mean([l.get("stepsDeviationScore",0.3) for l in passive[-7:]]) if passive else 0.3,
         # Trigger 4 — Social withdrawal (GPS + engagement)
         "gps_entropy_deviation_score":  np.mean([l.get("gpsDeviationScore",0.3) for l in passive[-7:]]) if passive else 0.3,
-        # Trigger 5 — Stress (IndicBERT semantic)
+        # Trigger 5 — Stress (XLM-R sentiment semantic)
         "journal_sentiment_score":      np.mean([l.get("nlpResults",{}).get("sentimentScore",0.5) for l in mood_logs[-7:]]) if mood_logs else 0.5,
         # Trigger 6 — Postpartum (profile-weighted in XGBoost)
         # Trigger 7 — Emotional suppression
@@ -2200,7 +2200,7 @@ Rules:
 
 ### Non-Negotiable Rules
 1. Crisis detection uses sentinet/suicidality — never keyword matching
-2. Sentiment uses IndicBERT — never keyword counting
+2. Sentiment uses XLM-R sentiment — never keyword counting
 3. Cycle vulnerability uses personalized LSTM — never fixed day rules
 4. Risk score uses XGBoost 14-feature fusion — never arithmetic formula
 5. JITAI timing uses personalized model — never same rules for everyone
@@ -2233,7 +2233,7 @@ print("2/3 emotion detector (distilroberta)...")
 pipeline("text-classification",
          model="j-hartmann/emotion-english-distilroberta-base", top_k=None)
 
-print("3/3 IndicBERT Tamil/English sentiment...")
+print("3/3 XLM-R sentiment Tamil/English sentiment...")
 AutoTokenizer.from_pretrained("ai4bharat/indic-bert")
 AutoModelForSequenceClassification.from_pretrained("ai4bharat/indic-bert", num_labels=3)
 
@@ -2426,7 +2426,7 @@ Never:
 
 Always:
 - Use sentinet/suicidality for crisis detection
-- Use IndicBERT for Tamil sentiment
+- Use XLM-R sentiment for Tamil sentiment
 - Use personalized LSTM for cycle phase
 - Use XGBoost for risk score
 - Show risk with color + icon + text

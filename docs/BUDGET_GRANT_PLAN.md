@@ -28,7 +28,7 @@ Hosts the Node.js Express backend (port 5000) and the Python FastAPI AI service
 requests, runs the hourly `node-cron` JITAI scheduler and the 15-minute escalation
 cron, holds the Firebase Admin SDK connection for real-time Firestore writes, and
 dispatches FCM push notifications. Also carries the local HuggingFace inference
-load — `sentinet/suicidality` (crisis), IndicBERT (sentiment), distilroberta
+load — `sentinet/suicidality` (crisis), XLM-R sentiment, distilroberta
 (emotion) — which is why 4 GB RAM is the floor rather than an e2-small.
 
 **GCP Cloud Storage — 50 GB — ₹450**
@@ -48,7 +48,7 @@ Encrypt certificate binding, and strands every mobile client pointed at
 
 **GCP egress bandwidth — ~5 GB/month — ₹200**
 Outbound transfer to mobile users and the dashboard: XGBoost risk scores with SHAP
-factor explanations, IndicBERT sentiment scores, `sentinet/suicidality` crisis
+factor explanations, XLM-R sentiment scores, `sentinet/suicidality` crisis
 probabilities, LLM chat responses, and passive-monitoring acknowledgements.
 
 ## 2 · Domain, Security & Networking
@@ -87,7 +87,7 @@ plan named the superseded `mental-roberta` classifier here.)*
 
 **NVIDIA API — LLM inference credits — ₹500** ← *new line item*
 The conversational agent is an NVIDIA-hosted chain: `meta/llama-3.1-8b-instruct`
-primary (~1–2 s measured) with `minimaxai/minimax-m2.7` as quality backstop, plus
+primary (~1–2 s measured) with `nvidia/nemotron-3-super-120b-a12b` as quality backstop, plus
 the clinician narrative-summary path. This **replaces the previously budgeted local
 Gemma 4B on Ollama**, which required a dedicated GPU the project does not have.
 NVIDIA's build tier covers development; this reserves headroom for demo-day and

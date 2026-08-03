@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
 import { auth } from '../utils/firebase';
-import { api, postData } from '../utils/api';
+import { api, postData, resolveBackend } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -12,6 +12,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true); // True while Firebase checks auth state on load
   const [dbUser, setDbUser] = useState(null); // The user's profile from the backend
+  const [backendUrl, setBackendUrl] = useState(null); // null = no backend reachable
 
   // Call this after profile mutations (e.g., onboarding save) to re-sync state
   const refreshDbUser = async () => {
@@ -29,10 +30,16 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }, 5000);
 
+    // Find a reachable backend before the first API call. Without this the app
+    // fires every request at a guessed host and reports "Network Error" on
+    // every screen at once.
+    resolveBackend().then((base) => setBackendUrl(base));
+
     // Listen for Firebase Auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
+        await resolveBackend();
         // Fetch full profile from backend to get name and settings
         try {
           const res = await api.get('/auth/me');

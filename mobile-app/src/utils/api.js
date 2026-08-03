@@ -30,20 +30,25 @@ function packagerHost() {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ? host : null;
 }
 
-function resolveBaseUrl() {
+// Candidates in priority order. localhost comes FIRST because it is the only
+// one immune to the LAN IP changing: with `adb reverse tcp:5000 tcp:5000` the
+// phone reaches the laptop through the USB cable, so hotspot re-assignments and
+// WiFi switches stop mattering. The LAN IP is the fallback for wireless use.
+function candidateBaseUrls() {
   const explicit = process.env.EXPO_PUBLIC_API_URL;
-  if (explicit) return explicit.replace(/\/+$/, '');
+  if (explicit) return [explicit.replace(/\/+$/, '')];
 
+  const urls = [];
+  if (Platform.OS === 'android') urls.push(`http://localhost:${PORT}/api`); // adb reverse
   const host = packagerHost();
-  if (host) return `http://${host}:${PORT}/api`;
-
-  return Platform.OS === 'android'
-    ? `http://10.0.2.2:${PORT}/api`   // Android emulator loopback
-    : `http://localhost:${PORT}/api`;
+  if (host) urls.push(`http://${host}:${PORT}/api`);                        // same LAN
+  if (Platform.OS === 'android') urls.push(`http://10.0.2.2:${PORT}/api`);  // emulator
+  else urls.push(`http://localhost:${PORT}/api`);
+  return [...new Set(urls)];
 }
 
-export const BASE_URL = resolveBaseUrl();
-console.log('[api] backend base URL →', BASE_URL);
+const CANDIDATES = candidateBaseUrls();
+export let BASE_URL = CANDIDATES[0];
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -58,6 +63,35 @@ export const TIMEOUTS = {
   chat:    60000,
   cycle:   20000,
 };
+
+// Probe every candidate against /api/health and keep the first that answers.
+// "Network Error" on a phone is almost always the wrong host, not a dead
+// server — this removes the guesswork instead of making the user edit a file.
+let _resolved = null;
+export async function resolveBackend({ force = false } = {}) {
+  if (_resolved && !force) return _resolved;
+  for (const base of CANDIDATES) {
+    try {
+      await axios.get(`${base}/health`, { timeout: 2500 });
+      BASE_URL = base;
+      api.defaults.baseURL = base;
+      _resolved = base;
+      console.log('[api] backend reachable at', base);
+      return base;
+    } catch {
+      console.log('[api] no backend at', base);
+    }
+  }
+  console.warn('[api] no backend reachable. Tried:', CANDIDATES.join(', '));
+  console.warn('[api] over USB run: adb reverse tcp:5000 tcp:5000');
+  _resolved = null;
+  return null;
+}
+
+/** Human-readable connection state for the UI to surface honestly. */
+export function connectionInfo() {
+  return { baseUrl: BASE_URL, resolved: !!_resolved, candidates: CANDIDATES };
+}
 
 import { auth } from './firebase';
 

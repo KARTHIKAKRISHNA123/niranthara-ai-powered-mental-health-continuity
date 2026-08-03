@@ -19,7 +19,17 @@ if NVIDIA_API_KEY:
 else:
     client = None
 
-MODEL_NAME = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m2.7")
+# minimaxai/minimax-m2.7 was the quality tier until NVIDIA retired it — it now
+# returns HTTP 410 Gone. That silently broke BOTH chains: chat wasted ~5s on a
+# dead tier before falling through, and the clinician summary (which had Minimax
+# as its PRIMARY) degraded to the fast model on every single call.
+# Its replacement minimax-m3 is a reasoning model — measured 36.8s for "Say OK",
+# which blows the backend's 45s axios budget. Not viable.
+# Measured alternatives (same prompt, Tanglish distress):
+#   nvidia/nemotron-3-super-120b-a12b          4.5s
+#   nvidia/llama-3.3-nemotron-super-49b-v1.5   6.7s
+#   meta/llama-3.1-70b-instruct                7.5s
+MODEL_NAME = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b")
 
 # Two tiers, two jobs:
 # - CHAT is latency-first: Llama 3.1 8B answers in ~1-2s (measured), which is
@@ -29,7 +39,10 @@ MODEL_NAME = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m2.7")
 #   is its fast backstop. Static text is the last resort on both paths.
 FAST_MODEL         = os.getenv("NVIDIA_FAST_MODEL", "meta/llama-3.1-8b-instruct")
 CHAT_MODEL         = os.getenv("NVIDIA_CHAT_MODEL", FAST_MODEL)
-PRIMARY_TIMEOUT_S  = float(os.getenv("NVIDIA_PRIMARY_TIMEOUT", "25"))
+# Backstop budget. Was 25s for the retired reasoning model; the replacement
+# answers in ~4.5s, so 15s is generous and keeps worst-case chain time
+# (12s chat + 15s backstop = 27s) well inside the backend's 45s axios timeout.
+PRIMARY_TIMEOUT_S  = float(os.getenv("NVIDIA_PRIMARY_TIMEOUT", "15"))
 FALLBACK_TIMEOUT_S = float(os.getenv("NVIDIA_FALLBACK_TIMEOUT", "10"))
 CHAT_TIMEOUT_S     = float(os.getenv("NVIDIA_CHAT_TIMEOUT", "12"))
 

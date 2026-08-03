@@ -8,6 +8,11 @@ import numpy as np
 import pickle
 import os
 
+# The JITAI router decides WHEN to intervene (receptivity). WHICH intervention
+# to send is an outcome-learning question, so it is delegated to the one
+# selector in routers/outcome.py rather than re-implemented here.
+from routers.outcome import choose_intervention, TypeOutcome
+
 router = APIRouter()
 
 
@@ -58,6 +63,14 @@ class JITAIRequest(BaseModel):
     isInChat:            bool  = False
     hour_of_day:         int   = 12
     day_of_week:         int   = 0
+    # ── Outcome-learning context, supplied by the backend scheduler from
+    # outcomeService.effectivenessFor(uid). Empty is safe: the selector falls
+    # back to the population prior and says so in its rationale.
+    perType:             List[TypeOutcome] = []
+    populationMean:      float = 0.0
+    engagementRate:      Optional[float] = None
+    riskLevel:           Optional[str]   = "low"
+    tracksCycle:         bool  = False
 
 
 class TrainRequest(BaseModel):
@@ -71,7 +84,7 @@ async def evaluate_jitai(request: JITAIRequest):
     if request.crisisProbability > 0.85:
         return {
             "shouldIntervene":  True,
-            "interventionType": "crisis_check",
+            "interventionType": "grounding",   # canonical name — see utils/interventions.py
             "priority":         "urgent",
             "receptivityScore": 1.0,
             "reasoning":        "Crisis NLP probability above 0.85",
@@ -114,27 +127,36 @@ async def evaluate_jitai(request: JITAIRequest):
             "reasoning":        f"Low receptivity ({model_type})"
         }
 
-    # Select intervention type based on signal combination
-    if request.crisisProbability > 0.6:
-        itype = "crisis_check"
-    elif request.cycleVulnerability > 0.7 and request.riskScore > 0.6:
-        itype = "cbt_reframe"
-    elif request.stepsDeviationScore > 0.5:
-        itype = "breathing"
-    elif request.cycleVulnerability > 0.5:
-        itype = "cycle_aware"
-    else:
-        itype = "gentle_nudge"
+    # ── WHICH intervention: decided by measured outcomes, not by thresholds.
+    #
+    # This used to be an if/elif ladder over signal thresholds — a hardcoded
+    # clinical decision, which is exactly what this project's architecture rules
+    # forbid, and which meant the system could never learn that (say) breathing
+    # does nothing for this particular patient while reframing reliably helps.
+    # Selection now goes through the same shrunk-effect selector the /api/outcome
+    # /select endpoint uses, so the safety floors apply here too.
+    selection = choose_intervention(
+        per_type=request.perType,
+        population_mean=request.populationMean,
+        crisis_probability=request.crisisProbability,
+        risk_level=request.riskLevel or "low",
+        engagement_rate=request.engagementRate,
+        tracks_cycle=request.tracksCycle,
+    )
 
     return {
         "shouldIntervene":  True,
-        "interventionType": itype,
+        "interventionType": selection["recommended"],
         "priority":         "high" if request.riskScore > 0.7 else "medium",
         "receptivityScore": round(receptivity, 3),
         "modelType":        model_type,
+        "selectionMode":    selection["selectionMode"],
+        "selectionRationale": selection["rationale"],
+        "candidates":       selection["candidates"],
         "triggerReasons":   [
             f"Risk score: {request.riskScore:.2f}",
-            f"Receptivity: {receptivity:.2f} ({model_type})"
+            f"Receptivity: {receptivity:.2f} ({model_type})",
+            selection["rationale"],
         ]
     }
 

@@ -18,11 +18,18 @@ import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { GENDERS, GENDER_LABELS } from '../utils/profile';
 
+// Two options in the PICKER only. The data model still understands non_binary
+// and prefer_not_to_say (profile.js CYCLE_ELIGIBLE keeps them), so any account
+// already carrying those values keeps working and keeps its cycle features —
+// removing them from the enum would silently strip access from existing users.
+//
+// Product decision, 2 Aug 2026: offering four categories that all resolve to the
+// same two feature sets is differentiation theatre. Broader identity options
+// return when they change what the product actually does. Tracked in the
+// roadmap, not dropped.
 const GENDER_OPTIONS = [
-  { id: GENDERS.FEMALE,    icon: 'user',      cycleEligible: true  },
-  { id: GENDERS.MALE,      icon: 'user',      cycleEligible: false },
-  { id: GENDERS.NONBINARY, icon: 'users',     cycleEligible: true  },
-  { id: GENDERS.UNSPOKEN,  icon: 'shield',    cycleEligible: true  },
+  { id: GENDERS.FEMALE, icon: 'user', cycleEligible: true  },
+  { id: GENDERS.MALE,   icon: 'user', cycleEligible: false },
 ];
 
 // Support profile — changes tone, tap-target size and which triggers are

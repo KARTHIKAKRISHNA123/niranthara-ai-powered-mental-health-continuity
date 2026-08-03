@@ -192,11 +192,14 @@ export default function InsightsScreen({ navigation }) {
                   </SvgText>
                 </Svg>
               </View>
+              {/* No emojis — the style guide bans them app-wide, and an emoji
+                  attached to a clinical risk statement reads as flippant at
+                  exactly the moment it must not. Colour already carries severity. */}
               <Text style={[styles.riskCardHint, { color: rl.color }]}>
-                {currentRisk >= 0.80 ? '⚠ Immediate support recommended. Talk to your clinician.'
-                  : currentRisk >= 0.60 ? '📋 Your clinician has been notified. Try a CBT reframe.'
-                  : currentRisk >= 0.30 ? '🌿 Moderate watch. A breathing exercise can help.'
-                  : '✅ You\'re doing well. Keep up the check-ins.'}
+                {currentRisk >= 0.80 ? 'Immediate support recommended. Talk to your clinician.'
+                  : currentRisk >= 0.60 ? 'Your clinician has been notified. A thought reframe may help.'
+                  : currentRisk >= 0.30 ? 'Worth watching. A breathing exercise can help.'
+                  : 'You\'re doing well. Keep up the check-ins.'}
               </Text>
             </View>
 
@@ -247,12 +250,16 @@ export default function InsightsScreen({ navigation }) {
               onPress={() => navigation.navigate('SomaticBreathing')}
               accessibilityLabel="Start a breathing exercise"
             >
-              <Text style={styles.nudgeIcon}>🫁</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nudgeTitle}>Start a Breathing Exercise</Text>
-                <Text style={styles.nudgeDesc}>4-4-6 somatic breathing. Takes just 3 minutes.</Text>
+              {/* Feather icon in a tinted tile — the same pattern Home uses for
+                  every card, so the two screens finally look like one product. */}
+              <View style={styles.nudgeIconBox}>
+                <Feather name="wind" size={20} color={COLORS.sageDark} />
               </View>
-              <Text style={styles.nudgeArrow}>→</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nudgeTitle}>Start a breathing exercise</Text>
+                <Text style={styles.nudgeDesc}>4-4-6 somatic breathing. Takes about 3 minutes.</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={COLORS.sageDark} />
             </TouchableOpacity>
           </>
         )}
@@ -336,8 +343,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.md,
   },
-  nudgeIcon: { fontSize: 28 },
+  // Matches the icon tile on Home's cards — 44px, tinted, rounded.
+  nudgeIconBox: {
+    width: 44, height: 44, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.sageDark + '22',
+  },
   nudgeTitle: { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.sageDark },
   nudgeDesc: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.sageDark, marginTop: 3 },
-  nudgeArrow: { fontSize: 20, color: COLORS.sageDark },
 });

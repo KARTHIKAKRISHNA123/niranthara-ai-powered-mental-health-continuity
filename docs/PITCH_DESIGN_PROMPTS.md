@@ -73,7 +73,7 @@ Radius: 8 / 16 / 24 / 32 / pill. Spacing scale: 4, 8, 12, 16, 24, 32, 48.
 >    Firestore as integration bus, clinician React dashboard. Draw as an isometric 3D layered
 >    diagram; layers separate slightly on hover.
 > 6. **The ML stack** — XGBoost + SHAP (risk & explainability), sentinet/suicidality (crisis
->    classification), IndicBERT (Tamil/Tanglish sentiment), distilroberta (emotion), personalised
+>    classification), XLM-R (Tamil/Tanglish sentiment), distilroberta (emotion), personalised
 >    per-user LSTM (cycle vulnerability), LSTM autoencoder (biometric anomaly). Emphasise: *every
 >    clinical decision comes from a trained model — zero keyword matching, zero hardcoded
 >    thresholds.*
@@ -127,7 +127,7 @@ Radius: 8 / 16 / 24 / 32 / pill. Spacing scale: 4, 8, 12, 16, 24, 32, 48.
 >   deterioration, what "loss of follow-up" costs.
 > - **Column 2 — The system:** a clean architecture diagram (mobile → Express orchestration →
 >   FastAPI ML → Firestore → clinician dashboard) plus the ML inventory (XGBoost + SHAP,
->   sentinet/suicidality, IndicBERT, distilroberta, per-user LSTM, LSTM autoencoder). Add a compact
+>   sentinet/suicidality, XLM-R sentiment, distilroberta, per-user LSTM, LSTM autoencoder). Add a compact
 >   "how a check-in becomes an alert" numbered pipeline: encrypt → NLP → divergence → cycle
 >   vulnerability → XGBoost → alert.
 > - **Column 3 — Results & safety:** the multi-signal wearable stress score with its weights,
@@ -163,7 +163,7 @@ Radius: 8 / 16 / 24 / 32 / pill. Spacing scale: 4, 8, 12, 16, 24, 32, 48.
 >    clinician alert. Each step gets one sentence.
 > 4. **Feature grid** — 6–8 cards, each with a title, one line of plain English, and a small
 >    monospace tag naming the model behind it:
->    daily check-in with encrypted journalling (`IndicBERT · distilroberta`), crisis detection
+>    daily check-in with encrypted journalling (`XLM-R sentiment · distilroberta`), crisis detection
 >    (`sentinet/suicidality`), explainable risk score (`XGBoost + SHAP`), emotional-suppression
 >    detection (`mood–sentiment divergence`), cycle vulnerability (`per-user LSTM`, opt-in),
 >    wearable stress score (`Google Health API`), AI companion chat (`NVIDIA model chain`),

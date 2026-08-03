@@ -3,7 +3,8 @@
 // Hero components: SHAP Narrative Card + Emotional Suppression Arc.
 // Responsive, mobile-first, min 44px tap targets throughout.
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, Linking, Animated, Easing, Alert
@@ -506,6 +507,15 @@ export default function HomeScreen({ navigation }) {
   };
 
   useEffect(() => { fetchData(); }, [currentUser]);
+
+  // Refetch whenever Home regains focus. Tab screens stay MOUNTED, so a
+  // mount-only fetch left this screen frozen at whatever it loaded at app
+  // start: log a period on the Cycle tab and Home kept showing the old day,
+  // so the two screens disagreed about the cycle phase. Same staleness applied
+  // to risk and biometrics after a check-in, and to the day number after
+  // midnight. Cycle.js has the matching hook.
+  useFocusEffect(useCallback(() => { fetchData(); }, [currentUser, showCycle]));
+
   const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
 
   const riskScore = data.riskScore || data.avgRiskScore || 0;
@@ -573,7 +583,21 @@ export default function HomeScreen({ navigation }) {
         {/* Baseline stats */}
         <Animated.View style={[s.statsRow, entrance(anim2)]}>
           <BaselineStat iconName="trending-up" label="Steps" value={passive.steps || 0} baseline={passive.stepsBaseline} />
-          <BaselineStat iconName="moon" label="Sleep" value={passive.sleepHours ? parseFloat(passive.sleepHours.toFixed(1)) : null} baseline={passive.sleepBaseline} unit="h" />
+          {/* Wearable sleep first; fall back to what the patient reported in the
+              journal. They are different sources — measured vs self-reported —
+              but a patient who just typed "6 hours" into their check-in and then
+              sees "—h" on Home reasonably concludes the app ignored them. */}
+          <BaselineStat
+            iconName="moon"
+            label="Sleep"
+            value={
+              passive.sleepHours ? parseFloat(passive.sleepHours.toFixed(1))
+              : data.avgSleep    ? parseFloat(data.avgSleep.toFixed(1))
+              : null
+            }
+            baseline={passive.sleepBaseline}
+            unit="h"
+          />
           <BaselineStat iconName="heart" label="Avg Mood" value={data.avgMood ? parseFloat(data.avgMood.toFixed(1)) : null} baseline={3} />
         </Animated.View>
 
@@ -604,6 +628,26 @@ export default function HomeScreen({ navigation }) {
             <Text style={s.cardSub}>Take a moment to reflect on your mood</Text>
           </View>
           <Feather name="chevron-right" size={17} color={COLORS.roseDark} />
+        </TouchableOpacity>
+
+        {/* Recovery. Placed directly under the check-in so the app gives
+            something back on the same screen where it asks for something —
+            the risk ring above says how bad it is, this says whether it is
+            getting better. */}
+        <TouchableOpacity
+          style={[s.jitaiCard, { backgroundColor: COLORS.sageLight }]}
+          onPress={() => navigation.navigate('Recovery')}
+          activeOpacity={0.75}
+          accessibilityLabel="View your recovery progress and today's plan"
+        >
+          <View style={[s.jitaiIconBox, { backgroundColor: COLORS.sageDark + '22' }]}>
+            <Feather name="trending-up" size={18} color={COLORS.sageDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.cardTitle, { color: COLORS.sageDark }]}>Your recovery</Text>
+            <Text style={s.cardSub}>Today's plan and how far you've come</Text>
+          </View>
+          <Feather name="chevron-right" size={17} color={COLORS.sageDark} />
         </TouchableOpacity>
 
         {/* Wellbeing check: PHQ-9 (validated instrument) */}
@@ -667,15 +711,20 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Quick nav */}
+        {/* Quick nav — Insights ONLY.
+            Journal, Care and Cycle were removed because the bottom tab bar
+            already navigates to all three; two controls for one destination is
+            noise, and it made Home read as a menu rather than a dashboard.
+            Insights stays: it is a stack screen with no tab, so this tile is
+            its only entry point. Deleting it would strand the screen. */}
         <View style={s.quickRow}>
-          <QuickTile iconName="edit-3" label="Journal" sub="Log mood" onPress={() => goToTab('Journal')} a11y="Go to Journal" />
-          <QuickTile iconName="message-circle" label="Care" sub="Talk now" onPress={() => goToTab('Chat')} a11y="Go to Care" />
-          {showCycle ? (
-            <QuickTile iconName="moon" label="Cycle" sub="View phase" onPress={() => goToTab('Cycle')} a11y="Go to Cycle" />
-          ) : (
-            <QuickTile iconName="bar-chart-2" label="Insights" sub="30 days" onPress={() => navigation.navigate('Insights')} a11y="View 30-day insights" />
-          )}
+          <QuickTile
+            iconName="bar-chart-2"
+            label="Insights"
+            sub="Your last 30 days"
+            onPress={() => navigation.navigate('Insights')}
+            a11y="View 30-day insights"
+          />
         </View>
 
         {/* Sign out */}

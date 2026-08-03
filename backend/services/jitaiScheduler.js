@@ -7,6 +7,7 @@ const notificationService = require('./notificationService')
 const baselineService     = require('./baselineService')
 
 const { ai } = require('../utils/aiClient')
+const { normalizeIntervention } = require('../utils/interventions')
 
 const daysSince = (isoString) => {
   if (!isoString) return 0
@@ -57,6 +58,14 @@ cron.schedule('0 * * * *', async () => {
 
         const dropoutProbability = dropoutRes.data.dropoutProbability || 0
 
+        // ── THE LEARNING LOOP CLOSES HERE.
+        // What this patient's past interventions actually did to their mood is
+        // what decides the next one. Without this the selector ran on a
+        // population prior forever and the outcome engine was write-only.
+        const { summary: effectiveness, populationMean } =
+          await require('./outcomeService').effectivenessFor(uid)
+            .catch(() => ({ summary: { perType: [], engagementRate: null }, populationMean: 0 }))
+
         const now = new Date()
         const jitaiPayload = {
           uid,
@@ -66,7 +75,12 @@ cron.schedule('0 * * * *', async () => {
           crisisProbability:   mood.nlpResults?.crisisProbability || 0,
           isInChat:            false,
           hour_of_day:         now.getHours(),
-          day_of_week:         now.getDay()
+          day_of_week:         now.getDay(),
+          perType:             effectiveness.perType || [],
+          populationMean:      populationMean || 0,
+          engagementRate:      effectiveness.engagementRate,
+          riskLevel:           user.riskLevel || 'low',
+          tracksCycle:         user.tracksCycle === true || user.personaType === 'women'
         }
 
         const jitaiRes = await ai.post(`/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
@@ -74,10 +88,19 @@ cron.schedule('0 * * * *', async () => {
 
         if (result.shouldIntervene && user.fcmToken) {
           const logRef = await db.collection('jitaiLogs').add({
-            uid, interventionType: result.interventionType, priority: result.priority || 'medium',
+            uid,
+            interventionType: normalizeIntervention(result.interventionType),
+            source: 'jitai',
+            priority: result.priority || 'medium',
             triggerReasons: result.triggerReasons || [], riskScoreAtTrigger: user.riskScore || 0,
             receptivityScore: result.receptivityScore, notificationSent: false, openedByUser: false,
-            responseType: null, feedbackToModel: false, timestamp: now.toISOString()
+            // Why this intervention and not another — auditable after the fact,
+            // which is the point of not using a black-box optimiser.
+            selectionMode: result.selectionMode || null,
+            selectionRationale: result.selectionRationale || null,
+            hour_of_day: now.getHours(), day_of_week: now.getDay(),
+            responseType: null, feedbackToModel: false, timestamp: now.toISOString(),
+            createdAt: now.toISOString()
           })
 
           await notificationService.sendJITAINotification(user.fcmToken, result.interventionType, null, null)

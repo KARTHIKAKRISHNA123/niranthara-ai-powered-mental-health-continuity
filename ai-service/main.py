@@ -18,7 +18,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import chat, crisis, sentiment, emotion, predict, dropout, cycle, jitai, anomaly
+from routers import chat, crisis, sentiment, emotion, predict, dropout, cycle, jitai, anomaly, outcome
 
 app = FastAPI(
     title="Niranthara AI Service",
@@ -45,6 +45,7 @@ app.include_router(dropout.router,    prefix="/api/dropout",   tags=["Dropout"])
 app.include_router(cycle.router,     prefix="/api/cycle",     tags=["Cycle"])
 app.include_router(jitai.router,     prefix="/api/jitai",     tags=["JITAI"])
 app.include_router(anomaly.router,   prefix="/api/anomaly",   tags=["Anomaly"])
+app.include_router(outcome.router,   prefix="/api/outcome",   tags=["Outcome"])
 
 
 @app.on_event("startup")
@@ -79,6 +80,7 @@ def root():
             "cycle":     "Personalized LSTM per user",
             "jitai":     "Personalized XGBoost per user",
             "anomaly":   "Personalized LSTM Autoencoder — behavioral manifold anomaly detection",
+            "outcome":   "Constrained contextual selection + PHQ-9 trajectory regression — intervention effectiveness",
         }
     }
 

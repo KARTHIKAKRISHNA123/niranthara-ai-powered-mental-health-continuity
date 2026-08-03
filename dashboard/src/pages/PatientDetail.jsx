@@ -8,6 +8,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import { RiskBadge } from '../components/components'
+import RecoveryPanel from '../components/RecoveryPanel'
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -653,6 +654,11 @@ export default function PatientDetail() {
             )}
           </div>
 
+          {/* Recovery + outcome loop. Deliberately placed directly under the
+              risk chart: risk says who is deteriorating, this says whether
+              anything we did about it worked. */}
+          <RecoveryPanel uid={uid} />
+
           {/* SHAP top factors — upgraded to .shap-card classes */}
           <div className={`card shap-card ${patient.riskLevel || 'low'}`}>
             <div style={{ fontWeight: 500, marginBottom: 4 }}>Top Risk Factors</div>
@@ -770,7 +776,10 @@ export default function PatientDetail() {
                 {
                   label: 'Last Sentiment',
                   value: moodLogs[moodLogs.length - 1]?.nlpResults?.sentimentLabel || '—',
-                  sub: 'IndicBERT'
+                  // Must match ai-service/routers/sentiment.py. IndicBERT was
+                  // replaced because it had no trained classification head and
+                  // returned a constant ~0.338 for every input.
+                  sub: 'XLM-R sentiment'
                 },
                 {
                   label: 'Last Emotion',
