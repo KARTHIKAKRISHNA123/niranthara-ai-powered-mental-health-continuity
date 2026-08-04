@@ -79,26 +79,26 @@ Every stage is a trained model. A smartwatch and phone sense continuously; ten M
 ```mermaid
 graph TD
   subgraph Sensing["Sensing Layer"]
-    Watch[Fitbit Charge 6 or any wearable]
-    GHealth[Google Health - cloud API v4 OAuth]
-    HC[Android Health Connect - on-device, dev build only]
+    Watch["Fitbit Charge 6 or any wearable"]
+    GHealth["Google Health - cloud API v4 OAuth"]
+    HC["Android Health Connect - on-device, dev build only"]
   end
   subgraph Clients["Client Layer"]
-    Mob[Patient Mobile App - React Native Expo]
-    Dash[Clinician Dashboard - React 19 Vite]
+    Mob["Patient Mobile App - React Native Expo"]
+    Dash["Clinician Dashboard - React 19 Vite"]
   end
   subgraph Orchestration["Orchestration Layer"]
-    BE[Node 20 Express 5 Backend :5000]
-    Crons[JITAI hourly + Escalation 15min crons]
+    BE["Node 20 Express 5 Backend :5000"]
+    Crons["JITAI hourly + Escalation 15min crons"]
   end
   subgraph Intelligence["Intelligence Layer"]
-    AIS[FastAPI AI Service :8000 - 10 ML routers incl. outcome]
-    NV[NVIDIA Cloud LLMs - Llama 3.1 + Nemotron-3 120B]
+    AIS["FastAPI AI Service :8000 - 10 ML routers incl. outcome"]
+    NV["NVIDIA Cloud LLMs - Llama 3.1 + Nemotron-3 120B"]
   end
   subgraph Data["Data Layer"]
-    FS[(Firebase Firestore)]
-    Auth[Firebase Auth]
-    FCM[Firebase Cloud Messaging]
+    FS[("Firebase Firestore")]
+    Auth["Firebase Auth"]
+    FCM["Firebase Cloud Messaging"]
   end
 
   Watch -->|"BLE"| GHealth
@@ -123,29 +123,29 @@ graph TD
 ```mermaid
 flowchart LR
   subgraph MobileApp["mobile-app (Expo SDK 54)"]
-    Screens[screens: Home Chat Journal Assessment CrisisSupport Cycle Insights Recovery] --> Api[utils api.js axios + JWT interceptor]
-    HCsvc[services HealthConnectService] --> Api
-    Sync[services syncService offline queue] --> Api
+    Screens["screens: Home Chat Journal Assessment CrisisSupport Cycle Insights Recovery"] --> Api["utils api.js axios + JWT interceptor"]
+    HCsvc["services HealthConnectService"] --> Api
+    Sync["services syncService offline queue"] --> Api
   end
   subgraph Backend["backend (Express 5)"]
-    Routes[13 route files] --> MW[verifyToken + authorize + rateLimiter]
-    Routes --> Enc[utils encryption AES-256-GCM]
-    Routes --> AIC[utils aiClient - single AI boundary]
-    Sched[jitaiScheduler + escalationCron] --> AIC
+    Routes["13 route files"] --> MW["verifyToken + authorize + rateLimiter"]
+    Routes --> Enc["utils encryption AES-256-GCM"]
+    Routes --> AIC["utils aiClient - single AI boundary"]
+    Sched["jitaiScheduler + escalationCron"] --> AIC
   end
   subgraph AIService["ai-service (FastAPI)"]
-    Routers[10 routers: chat crisis sentiment emotion predict dropout cycle jitai anomaly outcome]
-    Routers --> HF[HuggingFace pipelines]
-    Routers --> XGB[XGBoost pkl + SHAP]
-    Routers --> Torch[Per-user LSTM and autoencoder pt or pkl]
-    Routers --> NVC[utils nvidia_client - LLM chain + guardrails]
+    Routers["10 routers: chat crisis sentiment emotion predict dropout cycle jitai anomaly outcome"]
+    Routers --> HF["HuggingFace pipelines"]
+    Routers --> XGB["XGBoost pkl + SHAP"]
+    Routers --> Torch["Per-user LSTM and autoencoder pt or pkl"]
+    Routers --> NVC["utils nvidia_client - LLM chain + guardrails"]
   end
   subgraph DashboardApp["dashboard (React 19)"]
-    Pages[Dashboard PatientDetail Alerts Login] --> Hooks[usePatients + useAlerts onSnapshot]
+    Pages["Dashboard PatientDetail Alerts Login"] --> Hooks["usePatients + useAlerts onSnapshot"]
   end
   Api -->|"REST"| Routes
   AIC -->|"HTTP"| Routers
-  Routes -->|"Admin SDK"| DB[(Firestore)]
+  Routes -->|"Admin SDK"| DB[("Firestore")]
   Hooks -->|"Web SDK live"| DB
 ```
 
@@ -373,18 +373,18 @@ FEEDBACK    → intervention delivered → engagement → proximal mood delta (7
 
 ```mermaid
 graph LR
-  P((Patient)) --> UC1[Log mood and journal]
-  P --> UC2[Chat with AI companion]
-  P --> UC3[Take PHQ-9 or GAD-7]
-  P --> UC4[Sync wearable biometrics]
-  P --> UC5[Open crisis support]
-  C((Clinician)) --> UC6[Triage caseload]
-  C --> UC7[Review alerts and resolve]
-  C --> UC8[Generate AI summary]
-  C --> UC9[Flag patient and export PDF]
-  S((Scheduler)) --> UC10[Sweep receptivity hourly]
-  S --> UC11[Escalate loss of follow-up]
-  UC1 -.->|includes| UC12[Detect crisis in text]
+  P(("Patient")) --> UC1["Log mood and journal"]
+  P --> UC2["Chat with AI companion"]
+  P --> UC3["Take PHQ-9 or GAD-7"]
+  P --> UC4["Sync wearable biometrics"]
+  P --> UC5["Open crisis support"]
+  C(("Clinician")) --> UC6["Triage caseload"]
+  C --> UC7["Review alerts and resolve"]
+  C --> UC8["Generate AI summary"]
+  C --> UC9["Flag patient and export PDF"]
+  S(("Scheduler")) --> UC10["Sweep receptivity hourly"]
+  S --> UC11["Escalate loss of follow-up"]
+  UC1 -.->|includes| UC12["Detect crisis in text"]
   UC2 -.->|includes| UC12
 ```
 
@@ -459,13 +459,13 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-  M[Mobile app] -->|1 log mood| B[Backend]
-  B -->|2 nlp fanout| A[AI service]
+  M["Mobile app"] -->|1 log mood| B["Backend"]
+  B -->|2 nlp fanout| A["AI service"]
   A -->|3 scores| B
   B -->|4 risk features| A
   A -->|5 score plus SHAP| B
-  B -->|6 write alert| F[(Firestore)]
-  F -->|7 onSnapshot| D[Dashboard]
+  B -->|6 write alert| F[("Firestore")]
+  F -->|7 onSnapshot| D["Dashboard"]
   D -->|8 resolve| F
 ```
 
@@ -473,22 +473,22 @@ graph LR
 
 ```mermaid
 flowchart TD
-  S1[Sync tapped] --> Q1{Mode SIMULATED?}
-  Q1 -->|yes| SIM[Simulated payload]
-  Q1 -->|no| Q2{Health Connect ready?}
+  S1["Sync tapped"] --> Q1{"Mode SIMULATED?"}
+  Q1 -->|yes| SIM["Simulated payload"]
+  Q1 -->|no| Q2{"Health Connect ready?"}
   Q2 -->|no| SIM
-  Q2 -->|yes| RD[Read 7 record types]
-  RD --> Q3{Any real records?}
+  Q2 -->|yes| RD["Read 7 record types"]
+  RD --> Q3{"Any real records?"}
   Q3 -->|no| SIM
-  Q3 -->|yes| NORM[Nulls for absent signals + provider name]
-  SIM --> POST[POST biometric-sync]
+  Q3 -->|yes| NORM["Nulls for absent signals + provider name"]
+  SIM --> POST["POST biometric-sync"]
   NORM --> POST
-  POST --> DEV[Baseline deviations - present signals only]
-  DEV --> STRESS[Renormalized stress score]
-  STRESS --> XGB[XGBoost re-score with 7-day mood context]
-  XGB --> Q4{2+ signals and stress above 0.55 or risk above 0.60?}
-  Q4 -->|yes| AL[Clinician alert + FCM]
-  Q4 -->|no| DONE[Store log only]
+  POST --> DEV["Baseline deviations - present signals only"]
+  DEV --> STRESS["Renormalized stress score"]
+  STRESS --> XGB["XGBoost re-score with 7-day mood context"]
+  XGB --> Q4{"2+ signals and stress above 0.55 or risk above 0.60?"}
+  Q4 -->|yes| AL["Clinician alert + FCM"]
+  Q4 -->|no| DONE["Store log only"]
 ```
 
 ### UML 6 — State (patient risk lifecycle)
@@ -511,24 +511,24 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
   subgraph CMP1A["Mobile <<component>>"]
-    CMP1B[Screens] --> CMP1C[api.js] 
-    CMP1D[HealthConnectService] --> CMP1C
+    CMP1B["Screens"] --> CMP1C["api.js"] 
+    CMP1D["HealthConnectService"] --> CMP1C
   end
   subgraph CMP2A["Backend <<component>>"]
-    CMP2B[Routes] --> CMP2C[Middleware]
-    CMP2B --> CMP2D[aiClient]
-    CMP2E[Crons] --> CMP2D
+    CMP2B["Routes"] --> CMP2C["Middleware"]
+    CMP2B --> CMP2D["aiClient"]
+    CMP2E["Crons"] --> CMP2D
   end
   subgraph CMP3A["AI Service <<component>>"]
-    CMP3B[Routers] --> CMP3C[nvidia_client]
-    CMP3B --> CMP3D[Model store pkl pt]
+    CMP3B["Routers"] --> CMP3C["nvidia_client"]
+    CMP3B --> CMP3D["Model store pkl pt"]
   end
   subgraph CMP4A["Dashboard <<component>>"]
-    CMP4B[Pages] --> CMP4C[onSnapshot hooks]
+    CMP4B["Pages"] --> CMP4C["onSnapshot hooks"]
   end
   CMP1C --> CMP2B
   CMP2D --> CMP3B
-  CMP4C --> FS[(Firestore)]
+  CMP4C --> FS[("Firestore")]
   CMP2B --> FS
 ```
 
@@ -536,21 +536,21 @@ flowchart LR
 
 ```mermaid
 graph TD
-  subgraph Wrist[Wrist]
-    W[Fitbit Charge 6]
+  subgraph Wrist["Wrist"]
+    W["Fitbit Charge 6"]
   end
-  subgraph Phone[Android phone]
-    GH[Google Health app] --> HCDB[(Health Connect store)]
-    APP[Niranthara dev-client build]
+  subgraph Phone["Android phone"]
+    GH["Google Health app"] --> HCDB[("Health Connect store")]
+    APP["Niranthara dev-client build"]
   end
-  subgraph Laptop[Dev laptop]
-    BE2[Node backend :5000]
-    AI2[FastAPI :8000 + local models]
-    DASH2[Vite dashboard :5173]
+  subgraph Laptop["Dev laptop"]
+    BE2["Node backend :5000"]
+    AI2["FastAPI :8000 + local models"]
+    DASH2["Vite dashboard :5173"]
   end
-  subgraph Cloud[Cloud]
-    FB[(Firebase: Firestore Auth FCM)]
-    NVD[NVIDIA LLM endpoint]
+  subgraph Cloud["Cloud"]
+    FB[("Firebase: Firestore Auth FCM")]
+    NVD["NVIDIA LLM endpoint"]
   end
   W -->|BLE| GH
   HCDB -->|native module| APP
@@ -565,20 +565,20 @@ graph TD
 
 ```mermaid
 flowchart TD
-  subgraph MobilePkg[mobile-app src]
-    MP1[screens] --> MP2[services]
-    MP1 --> MP3[utils]
-    MP1 --> MP4[theme]
-    MP1 --> MP5[navigation]
+  subgraph MobilePkg["mobile-app src"]
+    MP1["screens"] --> MP2["services"]
+    MP1 --> MP3["utils"]
+    MP1 --> MP4["theme"]
+    MP1 --> MP5["navigation"]
   end
-  subgraph BackendPkg[backend]
-    BP1[routes] --> BP2[middleware]
-    BP1 --> BP3[utils]
-    BP4[services crons] --> BP3
+  subgraph BackendPkg["backend"]
+    BP1["routes"] --> BP2["middleware"]
+    BP1 --> BP3["utils"]
+    BP4["services crons"] --> BP3
   end
-  subgraph AiPkg[ai-service]
-    AP1[routers] --> AP2[utils]
-    AP1 --> AP3[models]
+  subgraph AiPkg["ai-service"]
+    AP1["routers"] --> AP2["utils"]
+    AP1 --> AP3["models"]
   end
   MP3 --> BP1
   BP3 --> AP1
@@ -593,12 +593,12 @@ flowchart TD
 
 ```mermaid
 graph LR
-  E1[Patient] -->|"moods, journals, chats, assessments"| P0(("0.0\nNiranthara\nContinuity Platform"))
-  E2[Wearable via Health Connect] -->|"biometric records"| P0
+  E1["Patient"] -->|"moods, journals, chats, assessments"| P0(("0.0\nNiranthara\nContinuity Platform"))
+  E2["Wearable via Health Connect"] -->|"biometric records"| P0
   P0 -->|"replies, nudges, crisis support"| E1
-  P0 -->|"triaged alerts, summaries, trends"| E3[Clinician]
+  P0 -->|"triaged alerts, summaries, trends"| E3["Clinician"]
   E3 -->|"resolutions, flags"| P0
-  P0 -->|"LLM prompts"| E4[NVIDIA Cloud]
+  P0 -->|"LLM prompts"| E4["NVIDIA Cloud"]
   E4 -->|"generated text"| P0
 ```
 
@@ -606,19 +606,19 @@ graph LR
 
 ```mermaid
 graph TD
-  E1[Patient] -->|"journal + mood"| P1(("1.0\nAnalyze Text"))
+  E1["Patient"] -->|"journal + mood"| P1(("1.0\nAnalyze Text"))
   P1 -->|"scores"| P2(("2.0\nFuse Risk"))
-  E2[Wearable] -->|"biometrics"| P3(("3.0\nScore Physiology"))
+  E2["Wearable"] -->|"biometrics"| P3(("3.0\nScore Physiology"))
   P3 -->|"stress + anomaly"| P2
-  P2 -->|"risk snapshot"| D1[(D1: users)]
-  P2 -->|"log"| D2[(D2: moodLogs)]
-  P2 -->|"alert docs"| D3[(D3: clinicianAlerts)]
+  P2 -->|"risk snapshot"| D1[("D1: users")]
+  P2 -->|"log"| D2[("D2: moodLogs")]
+  P2 -->|"alert docs"| D3[("D3: clinicianAlerts")]
   D3 -->|"onSnapshot stream"| P4(("4.0\nNotify Clinician"))
-  P4 -->|"queue + notifications"| E3[Clinician]
+  P4 -->|"queue + notifications"| E3["Clinician"]
   E3 -->|"resolve"| D3
   D1 -->|"context"| P5(("5.0\nConverse and Guard"))
   E1 -->|"chat message"| P5
-  P5 -->|"encrypted turn"| D4[(D4: chatLogs)]
+  P5 -->|"encrypted turn"| D4[("D4: chatLogs")]
   P5 -->|"guarded reply"| E1
   D1 -->|"risk + inactivity"| P6(("6.0\nSweep Follow-up"))
   P6 -->|"loss of contact alerts"| D3

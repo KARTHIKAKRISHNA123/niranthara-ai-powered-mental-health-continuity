@@ -1,6 +1,6 @@
 # Niranthara — Session Handoff
-**Written 2 August 2026.** Paste §1 into a new chat to restore full context.
-Everything below was measured against running code, not assumed.
+**Updated 2 August 2026, end of session.** Paste §1 into a new chat to restore context.
+Everything here was measured against running code, not assumed.
 
 ---
 
@@ -11,183 +11,209 @@ Everything below was measured against running code, not assumed.
 > `mobile-app/` (React Native, Expo SDK 54), `backend/` (Node 20 / Express 5, :5000),
 > `ai-service/` (Python 3.11 / FastAPI, :8000), `dashboard/` (React 19 / Vite, :5173),
 > Firestore as the integration bus. **Read `CLAUDE.md` first** — it holds every
-> hard-won gotcha and is current as of 2 Aug 2026.
+> hard-won gotcha and is current as of 2 Aug 2026. Note it is **gitignored**, so it
+> exists only on this machine.
 >
 > **Problem statement:** *"How might we utilize AI chatbots and machine learning
 > to address incomplete alleviation of depression symptoms, attrition, and loss
 > of follow-up in mental health treatment?"* Submission: **Niral Thiruvizha 3.0**.
 >
-> **Current state: feature-complete and verified.** `node backend/scripts/verifyLoop.js`
-> reports **44 passed, 0 failed**. Dashboard builds. Both services boot.
-> The intervention→outcome→learning loop is closed and measured on real data.
+> **State: feature-complete and verified.** `cd backend && node scripts/verifyLoop.js`
+> → **44 passed, 0 failed**. Dashboard builds. Both services boot. The
+> intervention→outcome→learning loop is closed and measured on real data.
 >
-> **The headline feature** is the outcome loop: every intervention is paired with
+> **Headline feature — the outcome loop.** Every intervention is paired with
 > engagement + proximal mood delta (72h) + distal PHQ-9 delta, shrunk toward the
 > population mean `(n·user + 3·pop)/(n+3)`, reported as `insufficient` below n=4,
 > feeding `choose_intervention()` behind two hard safety floors (crisis > 0.75 →
-> grounding; engagement < 25% → checkin_nudge).
+> `grounding`; engagement < 25% → `checkin_nudge`). It **does explore** and says so
+> (`selectionMode: "explore"`) — bounded, decaying as 1/√(n+1), never on a patient
+> in crisis or disengaging. It is not RL. Never claim "we don't explore".
 >
 > **Three things I must disclose and never overclaim:**
 > 1. Risk + dropout models are trained on **600 rows of synthetic data** — pipeline
->    demonstration, not clinical accuracy.
+>    demonstration, not clinical accuracy. `models/model_trainer.py:39`.
 > 2. Crisis alerts have **no guaranteed human recipient** (no on-call, no ack timeout).
 > 3. Chat text reaches the **NVIDIA LLM in plaintext** (journals are encrypted at rest).
 >
-> **Docs to read:** `docs/DEMO_RUNBOOK.md` (the one demo script),
-> `docs/MASTER_KNOWLEDGE.md` (25-chapter technical bible),
-> `docs/CLINICAL_HONESTY_AUDIT.md` (every claim vs evidence),
-> `docs/FINAL_REVIEW_AND_PLAYBOOK.md` (104 judge questions),
-> `docs/PPT_PROMPT.md` + `docs/PROJECT_REPORT_PROMPT.md` (deck/report generators).
+> **Demo accounts:** phone = `ananya.demo@niranthara.dev`, dashboard =
+> `meena.clinician@niranthara.dev`. The `demo_patient_*` docs have **no Firebase Auth
+> record and cannot be logged into**.
 >
-> **Open items:** explainer + journey videos (see `docs/SESSION_HANDOFF.md` §4);
-> slide-by-slide deck review; A4 one-pager; brochure; A1 poster.
+> **Docs:** `docs/DEMO_RUNBOOK.md` (the one demo script) ·
+> `docs/MASTER_KNOWLEDGE.md` (25-chapter technical bible) ·
+> `docs/CLINICAL_HONESTY_AUDIT.md` (claim vs evidence) ·
+> `docs/FINAL_REVIEW_AND_PLAYBOOK.md` (104 judge questions + playbook) ·
+> `docs/VIDEO_SCRIPTS.md` (explainer + 2-host journey video) ·
+> `docs/PPT_PROMPT.md` + `docs/PROJECT_REPORT_PROMPT.md` (generators).
 
 ---
 
-# §2 · What changed on 2 August 2026
+# §2 · What changed in this session
 
-| Area | Change |
+## Models and clinical signal
+- **Sentiment model was headless.** `ai4bharat/indic-bert` has no classification
+  head; `num_labels=3` minted a random one → **constant ~0.338 for every input**
+  ("I am so happy today" scored *negative*). Replaced with
+  `cardiffnlp/twitter-xlm-roberta-base-sentiment`. Verified 0.021 positive /
+  0.929 negative. `sentiment.py` now **refuses to boot** if `id2label` is still
+  `LABEL_0/1/…`, and the old `INDICBERT_MODEL` env var is deliberately not read.
+- **Mood-sentiment divergence was inverted.** It compared mood *negativity*
+  against language *positivity*, so it peaked for the most **consistent** patients
+  and collapsed for suppression. Now both on one polarity scale: suppression
+  **0.929**, consistency **0.071**. *This is why the demo uses mood 5/5, not 2/5.*
+- **Tanglish sentiment deliberately skips Sarvam** — measured, translation
+  *inverts* distress ("I'm in great distress" → *"I am very comfortable"*). Raw
+  XLM-R errs negative, which is the safer failure mode. Crisis still translates.
+
+## Google Health — now reading a real Fitbit
+Three stacked bugs fixed. Verified live: **HR 87 · resting 76 · HRV 58ms ·
+steps 399 · sleep 8.4h**.
+1. `listDataPoints` sent a `startTime/endTime` filter → **HTTP 400 on every data
+   type**; v4 points have no top-level `startTime`. Filter removed, windowing in JS.
+2. Generic numeric-leaf parser read nothing (`beatsPerMinute` is a **string**).
+   Per-type `EXTRACTORS` added. Points are **newest-first** → latest is `[0]`.
+3. `.catch(() => null)` made a 400 and "no data" identical. Failures now log.
+
+Plus **per-signal windows** (HR = requested · steps = since local midnight ·
+HRV = 36h · sleep = most recent night within 48h) and **single-source steps** —
+three writers publish steps (`Charge 6`, `MobileTrack`, `HEALTH_CONNECT`) and
+summing triple-counted: a real 129-step morning displayed as 909, now 399.
+
+## Bugs fixed
+| What | Cause |
 |---|---|
-| **Google Health** | Now reads a **real Fitbit Charge 6**. Three stacked bugs fixed — see below |
-| **Wearable windows** | Per-signal: HR = requested · steps = since local midnight · HRV = 36h · sleep = most recent night ≤48h |
-| **Step dedup** | Three writers (`Charge 6`, `MobileTrack`, `HEALTH_CONNECT`) were summed; 129 real steps showed as 909. Now wearable-only |
-| **CBT save** | `/jitai/log-response` used a two-equality + `orderBy` query → `FAILED_PRECONDITION` *after* writing. Record saved, user saw an error. Now in-memory |
-| **Recovery screen** | `return` sat above `try`, so `finally` never cleared `loading` → infinite spinner. Guard moved inside; timeout 20s → 45s |
-| **Home / Cycle** | Both now `useFocusEffect` — tab screens stay mounted, so Home was frozen at app-start values and disagreed with Cycle on the cycle day |
-| **Home sleep tile** | Falls back to journal-reported sleep when no wearable sleep exists |
-| **Home quick-nav** | Journal/Care/Cycle tiles removed (duplicated the tab bar). **Insights kept** — it has no tab, that tile is its only entry point |
-| **Insights** | All five emojis removed; nudge uses a Feather icon in a tinted tile matching Home |
-| **Onboarding** | Gender picker reduced to **female / male**. Data model still accepts `non_binary` / `prefer_not_to_say` so existing accounts keep cycle access |
-| **Docs** | `CLAUDE.md` +10 gotchas · `PPT_PROMPT.md` (Slide 4b = the loop, ten ML systems, real wearable numbers, harder honesty slide, two-line titles) · `PROJECT_REPORT_PROMPT.md` (§5.7 outcome learning, §6.8 Recovery Engine, §7.5 verification) |
-| **New scripts** | `backend/scripts/checkWearable.js` — pre-flight, compares **server uptime vs `.env` mtime** and reports REAL vs `simulation` |
+| Recovery page span forever | `if (!user?.uid) return` **before** the try → `finally` never cleared `loading` |
+| "Could not save the thought record" | two-equality + `orderBy` needs a composite index → threw *after* the write succeeded |
+| *"An effect function must not return anything"* | `useFocusEffect(asyncFn)` returns a Promise |
+| Dashboard showed two different "next interventions" | selection is stochastic and was re-sampled per request; now persisted with the daily plan |
+| "No items scoring 2+" beside a PHQ-9 of 24 | empty `answers[]` rendered as a negative finding; now `itemsAvailable: false` |
+| Residual symptoms empty for every seeded patient | `scripts/backfillAssessmentItems.js` (seeded docs only, sums verified) |
+| `checkWearable.js` lied | it read its **own** env, not the server's; now compares server uptime vs `.env` mtime |
+| **Live API keys one `git add` from commit** | `.env.bak` was untracked but **not ignored**; deleted, `.env*` now in `.gitignore` |
 
-**The Google Health root cause, in one place:** v4 data points have **no top-level
-`startTime`** — each type nests its own — so the time filter returned HTTP 400
-`INVALID_DATA_POINT_FILTER_RESTRICTION_COMPARABLE` on every request; a generic
-numeric-leaf parser couldn't read `beatsPerMinute: "75"` (a **string**) or
-`heartRateVariability.rootMeanSquareOfSuccessiveDifferencesMilliseconds`; and
-`.catch(() => null)` made the 400 indistinguishable from "no data". Fixed by
-removing the filter (window in JS), per-type `EXTRACTORS`, and logging failures.
-**Verified live: HR 87 · resting 76 · HRV 58ms · steps 399 · sleep 8.4h.**
+## UI
+- Home quick-nav reduced to **Insights only** — Journal/Care/Cycle duplicated the
+  tab bar. Insights kept because it is a stack screen with no tab.
+- All five emojis removed from Insights; Feather icon in a tinted tile instead.
+- Dashboard `RecoveryPanel`: score **ring** (with *"not 100 minus risk"* on its
+  face), all raw hex → design tokens, clinical-flag accent bar, and
+  `PHQ-9 change 9.1% increase` instead of the double-negative `−9% reduction`.
+- Dashboard label `IndicBERT` → `XLM-R sentiment`.
 
----
+## Docs written or rewritten
+`CLINICAL_HONESTY_AUDIT.md` · `MVP_COMPLETION.md` · `MASTER_KNOWLEDGE.md` (25 ch) ·
+`FINAL_REVIEW_AND_PLAYBOOK.md` (104 questions) · `VIDEO_SCRIPTS.md` ·
+`DEMO_RUNBOOK.md` (fully rewritten — the old one told you to **hardcode an IP**,
+the project's worst historical bug, and used mood 2/5 for the money shot) ·
+`CLAUDE.md` (10 new gotchas) · `README.md` (diagram + architecture sweep) ·
+`PPT_PROMPT.md` + `PROJECT_REPORT_PROMPT.md` · `Build_Guide.md` correction banner.
 
-# §3 · Demo — yes, it is planned and final
-
-**`docs/DEMO_RUNBOOK.md` is the single script.** One path, no branches, 190 lines.
-Eight beats, exactly 8:00:
-
-`0:00 gap · 0:40 wearable · 1:30 live crisis · 2:20 Tamil + guardrail ·
-3:20 money shot · 4:15 synthetic-data disclosure · 4:40 the loop ·
-6:20 safety floor · 7:00 continuity · 7:35 close`
-
-**Accounts:** phone = `ananya.demo@niranthara.dev` · dashboard =
-`meena.clinician@niranthara.dev` · Google consent = your own Google account.
-The `demo_patient_*` accounts **cannot be logged into** (no Firebase Auth record).
-
-**Three money shots:** mood **5/5** + bleak journal → divergence 0.929 ·
-recovery 30 beside risk 0.975 with three × `not reported` · `SAFETY_FLOOR →
-grounding` firing because of the journal you just wrote.
-
-**Keep the dashboard tab open** — clinician toasts are `onSnapshot` + browser
-`Notification`; the alert doc is written either way but the popup needs the tab.
-**Patient push never fires** — nothing writes `users.fcmToken`.
+**Notion:** one standalone page —
+[Niranthara — Demo Day Reference Hub](https://app.notion.com/p/3b037129cbc481eba2c9f9949f9789e2).
+Not nested under the user's Niranthara page (no parent ID was available).
 
 ---
 
-# §4 · The two videos
+# §3 · Verified state
 
-Both can be shot from the same 8-minute demo. Do **not** write new material.
+```
+verifyLoop.js ......... 44 passed, 0 failed
+dashboard build ....... clean (~750ms)
+backend modules ....... all load, all exports resolve
+ai-service ............ 10 routers, py_compile clean
+mobile screens ........ all parse
+crisis classifier ..... 0.0008 benign · 0.9945 ideation
+sentiment ............. 0.021 positive · 0.929 negative
+Tanglish crisis ....... 0.008 without Sarvam → 0.96 with
+divergence ............ suppression 0.929 · consistency 0.071
+Google Health ......... connected, real Fitbit data flowing
+```
 
-## Video A — Explainer (2:30–3:00)
-
-This *is* the demo, tightened. Screen recording + voiceover, no face needed.
-
-| Time | Content | Source |
-|---|---|---|
-| 0:00–0:20 | The gap: one hour a year, 8,759 unseen | Runbook beat 1 |
-| 0:20–0:50 | Live crisis detection, typed on screen | Runbook beat 3 |
-| 0:50–1:15 | Tamil → Sarvam → 0.008 becomes 0.96 | Runbook beat 4 |
-| 1:15–1:50 | **Money shot:** mood 5/5 + bleak journal → alert | Runbook beat 5 |
-| 1:50–2:30 | The loop: recovery 30 vs risk 0.975, `not reported`, plateau flag | Runbook beat 7 |
-| 2:30–2:50 | Safety floor + the honesty line | Runbook beats 6, 8 |
-
-**Rule:** say the synthetic-data disclosure **in the video too**. A judge who
-watches the video and then hears it live twice trusts you more, not less.
-
-## Video B — Journey (1:30–2:00)
-
-Startup-style. Not features — the *story of finding the bugs*, which is your
-most human material and nobody else can claim it.
-
-Beat structure:
-1. **The premise** — "we set out to detect deterioration"
-2. **The turn** — "then we found our crisis classifier had never fired. It
-   returned the same constant for every input, including 'I want to end my life'"
-3. **The second turn** — "our sentiment model had the same defect. And our
-   engagement metric read zero for every real user because two halves of the
-   code disagreed on a field name"
-4. **What it changed** — "we stopped trusting anything we hadn't probed. Every
-   model gets four contrasting inputs. Every join has a regression test"
-5. **Where we landed** — 44 assertions, and a system that says `insufficient`
-   rather than inventing a number
-6. **Close** — the one sentence
-
-That arc is a genuine engineering-maturity story and it maps onto the video you
-referenced (the founder-journey format). Do not dramatise it; the facts are
-strong enough flat.
-
-## Tools
-
-| Need | Tool | Why |
-|---|---|---|
-| Screen capture (phone) | **scrcpy** (free) or Android Studio's screen record | Mirrors the device losslessly; scrcpy also lets you drive the phone from the laptop, so no hands in frame |
-| Screen capture (desktop) | **OBS Studio** (free) | Scene switching between dashboard and mirrored phone in one take |
-| Editing | **DaVinci Resolve** (free) | Colour + audio + timeline in one; overkill but no watermark and no subscription |
-| Faster alternative | **CapCut Desktop** (free) | Auto-captions are genuinely good, which matters for judges watching muted |
-| Voiceover | Phone earbuds in a quiet room, recorded separately | Never use laptop mic + room echo. Record VO *after* the screen capture and cut picture to voice |
-| Captions | CapCut auto-caption, then hand-fix every clinical term | Auto-captions will mangle "PHQ-9", "Tanglish", "sertraline" |
-
-**Production order that saves the most time:** write the VO script → record VO →
-capture screen while listening to your own VO → cut picture to voice. Editing
-picture-first to a script you haven't spoken is what makes demo videos drag.
-
-**Two hard rules.** Record at the phone's native resolution, portrait, and don't
-zoom in post — text goes soft and judges notice. And do a silent watch-through
-before export: if it reads without sound, it survives a noisy hall.
+**Ananya (demo patient):** risk 0.975 · recovery 30 · engagement 67% ·
+PHQ-9 8 → 17 · 4 intervention types, **all `insufficient`** (n = 3,1,2,3).
+She is engaging and getting worse — literally the problem statement.
 
 ---
 
-# §5 · Everything worth referring to
+# §4 · Open decisions — awaiting the user's call
 
-| Doc | Use it for |
-|---|---|
-| `CLAUDE.md` | Every gotcha. Read before touching code |
-| `docs/DEMO_RUNBOOK.md` | The demo. One script, hold it in your hand |
-| `docs/MASTER_KNOWLEDGE.md` | 25 chapters — problem, architecture, APIs, DB, ML, flows, viva |
-| `docs/CLINICAL_HONESTY_AUDIT.md` | Claim vs evidence; §0 is the synthetic-data wording |
-| `docs/FINAL_REVIEW_AND_PLAYBOOK.md` | 104 judge questions, communication drills, verdict |
-| `docs/MVP_COMPLETION.md` | Feature list, diagrams, schema, workflows |
-| `docs/PPT_PROMPT.md` | Deck generator — current architecture, two-line titles |
-| `docs/PROJECT_REPORT_PROMPT.md` | Report generator — chapter outline with honesty guards |
-| `docs/REAL_WEARABLE_SETUP.md` | Google Health / Health Connect setup |
-| `README.md` | Public-facing, rewritten and current |
-| `Build_Guide.md` | Historical spec — **carries a correction banner**; §40 is the style source |
-
-**Scripts:** `verifyLoop.js` (44 assertions) · `verifyData.js` (who has what data) ·
-`checkWearable.js` (pre-flight) · `backfillAssessmentItems.js` · `seedInterventions.js` ·
-`repairAndSeedDemo.js`
-
-**Notion:** *Niranthara — Demo Day Reference Hub* — accounts, numbers, disclosures,
-category rules, notifications, pre-flight.
+1. **`docs/` tracking.** User wants all of `docs/` untracked. I pushed back:
+   README links to `docs/` in 8 places and 8 docs are tracked. Suggested middle
+   ground — untrack only the internal working material
+   (`BUDGET_GRANT_PLAN`, `PITCH_DESIGN_PROMPTS`, `PPT_PROMPT`, `PROJECT_REPORT_PROMPT`),
+   keep `DEMO_RUNBOOK`, `REAL_WEARABLE_SETUP`, `HACKATHON_STRATEGY`,
+   `NIRANTHARA_V2_MASTER_PLAN`. **Not yet actioned.**
+2. **`Build_Guide.md` deletion.** User wants it gone. **§40 is the Style Guide,
+   796 lines**, referenced by CLAUDE.md as the design source of truth and still
+   needed for poster/brochure/deck. Offered to extract to `docs/STYLE_GUIDE.md`
+   first. **Not yet actioned.**
+3. **`.codex/` and `dashboard/README.md`** — commands given, not yet run.
+4. **Hours framing inconsistency.** README says *"one hour a month / 729 hours"*;
+   demo script and all other docs say *"one hour a year / 8,759 hours"*. Both
+   defensible; **pick one** — a judge who sees both will ask.
+5. **`CLAUDE.md` is gitignored** (`.gitignore:13`) — two days of gotchas live only
+   on this machine. Decide whether that should change.
+6. **Design deliverables not started:** slide-by-slide creative review, A4 project
+   summary, brochure (fold/GSM/finish), A1 poster. User said they'll handle these
+   "here after" — confirm before building.
+7. **Notion page is standalone**, not under their Niranthara page.
 
 ---
 
-# §6 · Still open
+# §5 · Known broken / roadmap — never claim these work
 
-1. **Videos** — scripts above, not shot
-2. **Slide-by-slide deck review** — deck must exist first
-3. **A4 one-pager / brochure / A1 poster** — structures agreed, not produced; check print lead time
-4. **Cycle data from Google Health** — probed, every menstruation data type returns **HTTP 400 invalid data type ID**. Not a scope or data problem; the types aren't in the v4 surface available. Roadmap with a documented reason
-5. **Broader gender options** — roadmap; return them when they change what the product does
-6. Production blockers (unchanged): PHI egress to NVIDIA · no guaranteed crisis recipient · synthetic training data · cron in API process · models on local disk · no Firestore rules
+- **Patient push notifications do not fire.** `NotificationService.js` fetches an
+  Expo token but **nothing writes `users.fcmToken`**; the scheduler only pushes
+  `if (shouldIntervene && user.fcmToken)`.
+- **Clinician toasts need the dashboard tab OPEN.** `onSnapshot` + browser
+  `Notification`. The alert *document* is written either way. Web Push = roadmap.
+- **iOS entirely unsupported** — no HealthKit integration anywhere.
+- **Cycle data from Google Health is not possible today** — every plausible type
+  (`menstruation`, `menstruation-flow`, `menstrual-cycle`, …) returns **HTTP 400**,
+  the type IDs don't exist in the v4 surface. Manual cycle logging works.
+- **Recovery Passport does not exist** (PDF export on PatientDetail does).
+- Cron runs in the API process; per-user models on local disk → **cannot scale
+  horizontally**. `GET /outcomes/cohort/all` writes during a GET and fans out
+  sequentially. No Firestore security rules. No CI.
+
+---
+
+# §6 · Run it
+
+```bash
+# 1 — AI service FIRST (models take ~1-2 min)
+cd ai-service && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn main:app --port 8000
+
+# 2 — backend (RESTART AFTER EVERY EDIT — Node does not hot-reload)
+cd backend && node index.js
+
+# 3 — dashboard
+cd dashboard && npm run dev
+
+# 4 — mobile
+cd mobile-app && npx expo start
+```
+
+**If a restart "doesn't work":** on Windows the new process dies on `EADDRINUSE`
+and the stale one keeps serving. This bit us three times in one session.
+```bash
+netstat -ano | grep ":5000.*LISTENING"
+taskkill //PID <pid> //F
+```
+
+**Never activate a venv** — `python`/`py` are broken uv shims. Call
+`ai-service/.venv/Scripts/python.exe` directly.
+
+**Pre-demo checks:**
+```bash
+cd backend && node scripts/verifyLoop.js      # expect 44/44
+cd backend && node scripts/verifyData.js      # who has what data
+cd backend && node scripts/checkWearable.js   # decides if you may say "my watch"
+```
+
+---
+
+# §7 · The one sentence
+
+> **"Every other system tells you the patient is getting worse. Niranthara tells you whether what you did about it helped."**
