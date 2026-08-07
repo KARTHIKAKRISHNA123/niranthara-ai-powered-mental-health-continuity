@@ -29,3 +29,11 @@ docs/PITCH_DESIGN_PROMPTS.md
 docs/PPT_PROMPT.md
 docs/PROJECT_REPORT_PROMPT.md
 docs/
+
+# Claude configuration
+.claude/
+
+# Top-level documentation
+*.docx
+*.md
+!README.md
