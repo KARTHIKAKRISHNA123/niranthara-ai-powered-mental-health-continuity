@@ -17,4 +17,15 @@ CLAUDE.md
 .env*
 !.env.example
 .codex/
+
+# Historical spec, superseded. Its style guide (§22 + §40) was extracted and
+# corrected into docs/STYLE_GUIDE.md — read that, not this.
 Build_Guide.md
+
+# Internal working material — prompts, budgets, generators. Not part of the
+# published repo; kept locally. Everything README links to stays tracked.
+docs/BUDGET_GRANT_PLAN.md
+docs/PITCH_DESIGN_PROMPTS.md
+docs/PPT_PROMPT.md
+docs/PROJECT_REPORT_PROMPT.md
+docs/

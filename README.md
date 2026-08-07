@@ -6,7 +6,7 @@
 
 ### The AI Mental Health Continuity Platform
 
-**A psychiatrist sees a patient one hour a month. Niranthara makes the other 729 hours visible.**
+**A psychiatrist sees a patient about one hour a year. Niranthara makes the other 8,759 hours visible.**
 
 Passive monitoring · Just-in-time interventions · Real-time clinician risk intelligence
 *ML-first — clinical decisions come from trained models; the only deterministic rules are two labelled safety floors*
@@ -36,7 +36,7 @@ Depression treatment fails in the **gaps between appointments**, not in the appo
 |---|---|
 | Incomplete symptom alleviation | 50–70% of patients on first-line antidepressants do not reach remission; residual symptoms are the strongest relapse predictor |
 | Attrition | 20–60% of outpatients drop out of therapy — silently, between sessions |
-| Loss of follow-up | A clinician observes ~1 of every 730 hours of a patient's month |
+| Loss of follow-up | A clinician observes ~1 of the 8,760 hours in a patient's year — the other 8,759 are unmonitored |
 | Relapse | 50% after one episode, 80%+ after two; prodromal signals (sleep, activity, language) appear days before subjective awareness |
 
 ## 2. Solution Overview
@@ -172,7 +172,7 @@ flowchart LR
 
 | Technology | Version | Category | Purpose | Why Chosen | Key Features Used |
 |---|---|---|---|---|---|
-| Express | ^5.2.1 | Web framework | 9 route modules, middleware pipeline | Minimal, middleware ecosystem | Router, JSON body 10mb, error middleware |
+| Express | ^5.2.1 | Web framework | 13 route modules, middleware pipeline | Minimal, middleware ecosystem | Router, JSON body 10mb, error middleware |
 | firebase-admin | ^13.8.0 | Auth + DB | `verifyIdToken` on every protected route; all Firestore writes; FCM push | Server-side trust boundary for Firebase | Auth verify, Firestore Admin SDK, Messaging |
 | axios | ^1.15.0 | HTTP client | All AI-service calls via `utils/aiClient.js` (single instance: base URL, 15s default, LLM paths 45s) | Interceptors, per-request config | `axios.create`, timeouts |
 | node-cron | ^4.2.1 | Scheduling | JITAI hourly sweep; escalation every 15 min | In-process, demo-simple (queue is the V2 path) | `cron.schedule` |
@@ -193,7 +193,7 @@ flowchart LR
 | @react-native-community/netinfo | 11.4.1 | Network | Online/offline detection for the sync wrapper | — | `NetInfo.fetch()` |
 | react-navigation (native, stack, tabs) | ^7.x | Navigation | Tab bar (Home/Journal/Care/Cycle) + stack (Assessment, CrisisSupport, interventions) | — | Nested navigators, fade transition for crisis screen |
 | react-native-svg | 15.12.1 | Graphics | Risk ring, cycle ring, HRV arc | Crisp vector gauges | `Circle`, `Path`, `SvgText`, animated dash |
-| @expo-google-fonts (Cormorant Garamond, DM Sans) | ^0.4.x | Typography | Style-guide fonts | Build_Guide §40 | `useFonts` load at boot |
+| @expo-google-fonts (Cormorant Garamond, DM Sans) | ^0.4.x | Typography | Style-guide fonts | `docs/STYLE_GUIDE.md` | `useFonts` load at boot |
 | expo-notifications / expo-task-manager / expo-background-fetch | ~0.32 / ~14 / ~14 | Background | Local notifications; passive monitor registration | — | Background task registry |
 
 ### Dashboard (Web)
@@ -274,7 +274,10 @@ run against real service functions with no seeding shortcuts.
 ### Write path — the money shot: mood check-in → live clinician alert (~1.2s measured)
 
 ```
-1. USER — Journal tab: mood 2/5 + journal text → Save
+1. USER — Journal tab: mood 5/5 + a bleak journal entry → Save
+   (5/5 on purpose: high stated mood against negative language is what makes
+    divergence peak — 0.929. A low mood with a bleak entry is a *consistent*
+    patient and scores 0.071. The suppression case is the one worth showing.)
    → mobile-app/src/screens/Journal.js → postData('/mood/log', ...)
 2. MOBILE API LAYER — utils/api.js
    → NetInfo online check (offline → AsyncStorage queue, syncs later)
@@ -366,8 +369,11 @@ FEEDBACK    → intervention delivered → engagement → proximal mood delta (7
 
 **Transformations at each boundary:** vendor records → canonical nulls-preserved payload (adapter); plaintext → AES-256-GCM ciphertext (before persistence); raw text → model scores (NLP boundary — the dashboard sees scores, never text); scores → features (backend assembly); features → explained prediction (SHAP at the model boundary).
 
-<details>
-<summary>📐 UML Diagrams — Full Suite</summary>
+### UML Diagrams — Full Suite
+
+> These are deliberately **not** inside a `<details>` block. GitHub initialises
+> Mermaid against a hidden element with zero width, so every diagram collapsed
+> behind `<summary>` renders blank. Keep them expanded.
 
 ### UML 1 — Use Case
 
@@ -445,8 +451,8 @@ sequenceDiagram
   B->>A: POST api chat (context payload)
   A->>A: sentinet/suicidality crisis check
   A->>A: dosing-question guardrail
-  A->>N: Llama 3.1 (12s budget)
-  N-->>A: reply (or fall to Minimax 25s)
+  A->>N: Llama 3.1 8B (12s budget)
+  N-->>A: reply (or fall to Nemotron-3 120B, 15s)
   A->>A: output guardrail
   A-->>B: reply + crisisProbability + modelUsed
   B->>F: encrypted chatLog + alert if prob high
@@ -510,20 +516,20 @@ stateDiagram-v2
 
 ```mermaid
 flowchart LR
-  subgraph CMP1A["Mobile <<component>>"]
-    CMP1B["Screens"] --> CMP1C["api.js"] 
+  subgraph CMP1A["Mobile &lt;&lt;component&gt;&gt;"]
+    CMP1B["Screens"] --> CMP1C["api.js"]
     CMP1D["HealthConnectService"] --> CMP1C
   end
-  subgraph CMP2A["Backend <<component>>"]
+  subgraph CMP2A["Backend &lt;&lt;component&gt;&gt;"]
     CMP2B["Routes"] --> CMP2C["Middleware"]
     CMP2B --> CMP2D["aiClient"]
     CMP2E["Crons"] --> CMP2D
   end
-  subgraph CMP3A["AI Service <<component>>"]
+  subgraph CMP3A["AI Service &lt;&lt;component&gt;&gt;"]
     CMP3B["Routers"] --> CMP3C["nvidia_client"]
     CMP3B --> CMP3D["Model store pkl pt"]
   end
-  subgraph CMP4A["Dashboard <<component>>"]
+  subgraph CMP4A["Dashboard &lt;&lt;component&gt;&gt;"]
     CMP4B["Pages"] --> CMP4C["onSnapshot hooks"]
   end
   CMP1C --> CMP2B
@@ -532,7 +538,7 @@ flowchart LR
   CMP2B --> FS
 ```
 
-### UML 8 — Deployment (demo topology)
+### UML 8a — Deployment (demo / dev topology)
 
 ```mermaid
 graph TD
@@ -552,14 +558,57 @@ graph TD
     FB[("Firebase: Firestore Auth FCM")]
     NVD["NVIDIA LLM endpoint"]
   end
-  W -->|BLE| GH
-  HCDB -->|native module| APP
-  APP -->|hotspot HTTPS| BE2
+  W -->|"BLE"| GH
+  HCDB -->|"native module"| APP
+  APP -->|"LAN, derived from Expo hostUri"| BE2
   BE2 --> AI2
-  AI2 -->|HTTPS| NVD
+  AI2 -->|"HTTPS"| NVD
   BE2 --> FB
   DASH2 --> FB
 ```
+
+### UML 8b — Deployment (production, Docker Compose on one VM)
+
+Defined in [`deploy/`](deploy/). Only Caddy publishes ports; the three app
+services are reachable only on the internal Compose network.
+
+```mermaid
+graph TD
+  subgraph PhoneP["Android phone"]
+    APK["Niranthara APK - EXPO_PUBLIC_API_URL"]
+  end
+  subgraph VM["GCP Compute Engine - e2-standard-2, Ubuntu 24.04"]
+    subgraph DC["Docker Compose network 'niranthara'"]
+      CAD["caddy :80/:443 - Let's Encrypt TLS"]
+      DSH["dashboard - nginx static bundle"]
+      BEP["backend :5000 - replicas pinned to 1"]
+      AIP["ai-service :8000 - CPU torch, HF models baked in"]
+    end
+    VOL[("named volumes: user_autoencoders, user_cycles, user_jitai")]
+  end
+  subgraph CloudP["Managed services - never containerised"]
+    FBP[("Firebase Firestore + Auth")]
+    NVP["NVIDIA LLM endpoint"]
+    GHP["Google Health API v4"]
+  end
+  APK -->|"HTTPS only - Android blocks cleartext"| CAD
+  CAD -->|"/api/*"| BEP
+  CAD -->|"everything else"| DSH
+  BEP -->|"AI_SERVICE_URL=http://ai-service:8000"| AIP
+  AIP --- VOL
+  AIP -->|"HTTPS"| NVP
+  BEP --> FBP
+  BEP -->|"OAuth callback via Caddy"| GHP
+  DSH -.->|"browser talks to Firestore directly"| FBP
+```
+
+**Two constraints this diagram encodes.** `backend` is pinned to **one replica**
+because `index.js` starts `jitaiScheduler` and `startEscalationCron` inside
+`app.listen` — a second replica sends every patient a duplicate JITAI push and
+every clinician a duplicate crisis alert. And the three named volumes are not
+optional: `anomaly.py:127`, `cycle.py:72` and `jitai.py:52` write per-patient
+models to local disk, so without them every `docker compose up --build` destroys
+every personalised model silently.
 
 ### UML 9 — Package
 
@@ -584,16 +633,13 @@ flowchart TD
   BP3 --> AP1
 ```
 
-</details>
-
-<details>
-<summary>📊 Data Flow Diagrams (L0 + L1)</summary>
+### Data Flow Diagrams (L0 + L1)
 
 ### DFD Level 0 — Context
 
 ```mermaid
 graph LR
-  E1["Patient"] -->|"moods, journals, chats, assessments"| P0(("0.0\nNiranthara\nContinuity Platform"))
+  E1["Patient"] -->|"moods, journals, chats, assessments"| P0(("0.0<br/>Niranthara<br/>Continuity Platform"))
   E2["Wearable via Health Connect"] -->|"biometric records"| P0
   P0 -->|"replies, nudges, crisis support"| E1
   P0 -->|"triaged alerts, summaries, trends"| E3["Clinician"]
@@ -606,25 +652,26 @@ graph LR
 
 ```mermaid
 graph TD
-  E1["Patient"] -->|"journal + mood"| P1(("1.0\nAnalyze Text"))
-  P1 -->|"scores"| P2(("2.0\nFuse Risk"))
-  E2["Wearable"] -->|"biometrics"| P3(("3.0\nScore Physiology"))
+  E1["Patient"] -->|"journal + mood"| P1(("1.0<br/>Analyze Text"))
+  P1 -->|"scores"| P2(("2.0<br/>Fuse Risk"))
+  E2["Wearable"] -->|"biometrics"| P3(("3.0<br/>Score Physiology"))
   P3 -->|"stress + anomaly"| P2
   P2 -->|"risk snapshot"| D1[("D1: users")]
   P2 -->|"log"| D2[("D2: moodLogs")]
   P2 -->|"alert docs"| D3[("D3: clinicianAlerts")]
-  D3 -->|"onSnapshot stream"| P4(("4.0\nNotify Clinician"))
+  D3 -->|"onSnapshot stream"| P4(("4.0<br/>Notify Clinician"))
   P4 -->|"queue + notifications"| E3["Clinician"]
   E3 -->|"resolve"| D3
-  D1 -->|"context"| P5(("5.0\nConverse and Guard"))
+  D1 -->|"context"| P5(("5.0<br/>Converse and Guard"))
   E1 -->|"chat message"| P5
   P5 -->|"encrypted turn"| D4[("D4: chatLogs")]
   P5 -->|"guarded reply"| E1
-  D1 -->|"risk + inactivity"| P6(("6.0\nSweep Follow-up"))
+  D1 -->|"risk + inactivity"| P6(("6.0<br/>Sweep Follow-up"))
   P6 -->|"loss of contact alerts"| D3
+  P2 -->|"delivery + response"| D5[("D5: interventionOutcomes")]
+  D5 -->|"shrunk effectiveness"| P7(("7.0<br/>Choose Intervention"))
+  P7 -->|"next action"| E1
 ```
-
-</details>
 
 ## 10. Folder Structure
 
@@ -636,16 +683,25 @@ graph TD
 │   │   ├── nvidia_client.py     # LLM chain + two-tier guardrails + clinical summary
 │   │   ├── sarvam_client.py     # Tamil STT (mockable)
 │   │   └── language_detector.py # Tamil script / Tanglish / English per message
-│   ├── models/                  # risk_model.pkl, dropout_model.pkl, per-user user_cycles/ user_jitai/ user_autoencoders/
+│   ├── utils/interventions.py   # the 6 canonical intervention ids + alias map (mirrors backend/utils/interventions.js)
+│   ├── models/                  # risk_model.pkl + dropout_model.pkl (population), and three RUNTIME-STATE dirs
+│   │                            #   user_cycles/ user_jitai/ user_autoencoders/ — written per patient, not in git
 │   ├── download_models.py       # one-time HF downloads + XGBoost training (needs PYTHONUTF8=1)
 │   └── .venv/                   # uv-built CPython 3.11 (the committed venv/ is dead — ignore)
 ├── backend/                     # Node 20 Express 5 — orchestration (:5000)
 │   ├── index.js                 # fail-fast config, request log, safety nets, graceful shutdown, crons
-│   ├── routes/                  # auth, mood, chat, cycle, jitai, clinician, passive, biometric, risk, assessments
+│   ├── routes/                  # 13 files: auth, mood, chat, cycle, jitai, clinician, passive, biometric,
+│   │                            #   risk, assessments, googleHealth, outcome, recovery
 │   ├── middleware/              # verifyToken (Firebase), authorize (IDOR guard), rateLimiter
-│   ├── services/                # jitaiScheduler (hourly), escalationCron (15 min), notificationService (FCM), baselineService
-│   ├── utils/                   # aiClient (single AI boundary), encryption (AES-256-GCM), validators
-│   └── scripts/seedTestUser.js  # demo patient + alerts + PHQ-9 trajectory
+│   ├── services/                # jitaiScheduler (hourly), escalationCron (15 min), outcomeService,
+│   │                            #   recoveryService, googleHealthClient, notificationService, baselineService
+│   ├── utils/                   # aiClient (single AI boundary), encryption (AES-256-GCM), interventions, validators
+│   └── scripts/                 # verifyLoop.js (44 assertions — the only automated guard),
+│                                #   repairAndSeedDemo.js, verifyData.js, checkWearable.js, seed*.js
+├── deploy/                      # Docker Compose production stack (see deploy/README.md)
+│   ├── docker-compose.yml       # caddy + dashboard + backend + ai-service; per-user model volumes
+│   ├── Dockerfile.*             # ai-service (CPU torch, models baked), backend, dashboard (nginx)
+│   └── Caddyfile                # TLS termination — Android blocks cleartext, so HTTPS is mandatory
 ├── dashboard/                   # React 19 + Vite 8 clinician web (:5173)
 │   └── src/
 │       ├── pages/               # Dashboard (triage), PatientDetail (charts, SHAP, summary), Alerts, Login
@@ -655,8 +711,8 @@ graph TD
 │   └── src/
 │       ├── screens/             # Home, Chat, Journal, Assessment, CrisisSupport, Cycle, Insights, interventions/
 │       ├── services/            # HealthConnectService (wearable adapter), syncService (offline queue), passiveMonitor
-│       ├── utils/api.js         # BASE_URL (set your LAN IP), 8s global timeout, chat overrides to 60s
-│       └── theme/theme.js       # Build_Guide §40 tokens — single source of design truth
+│       ├── utils/api.js         # BASE_URL is DERIVED (never hardcode an IP); per-route TIMEOUTS
+│       └── theme/theme.js       # docs/STYLE_GUIDE.md tokens — single source of design truth
 ├── smartwatch/                  # Node biometric simulator (optional)
 └── docs/                        # DEMO_RUNBOOK (master demo + 28-demo cookbook), NIRANTHARA_V2_MASTER_PLAN, HACKATHON_STRATEGY
 ```
@@ -701,7 +757,38 @@ cd mobile-app && npx expo start --dev-client   # dev build required for Health C
 | | `SARVAM_API_KEY` | optional Tamil STT (mock mode without) |
 | `dashboard/.env` | `VITE_FIREBASE_*`, `VITE_API_URL` | Firebase web config + backend URL |
 | `mobile-app/src/utils/firebase.js` | — | Firebase web config |
-| `mobile-app/src/utils/api.js` | `BASE_URL` | **your machine's LAN IP** for physical devices (`10.0.2.2` for emulator) |
+| `mobile-app` (env or shell) | `EXPO_PUBLIC_API_URL` | Full backend base URL. **Optional in dev, required in production.** `api.js` otherwise derives the host from the Expo packager (`Constants.expoConfig.hostUri`) and falls back to `10.0.2.2` (Android emulator) / `localhost` |
+
+> **Never hardcode an IP in `api.js`.** It used to be a hand-edited constant and
+> a one-digit typo (`.49` vs `.36`) made every request fail — while `postData()`
+> reported those failures as "Saved Offline", so chat, check-ins and cycle all
+> died silently at once. The value is derived now; override it with the env var,
+> not by editing the file.
+
+### Production deployment (Docker Compose)
+
+The three server-side services are containerised in [`deploy/`](deploy/).
+`mobile-app` is **not** — Expo compiles to an APK, it is a client of this stack,
+not a service in it.
+
+```bash
+cd deploy && cp .env.example .env && docker compose up --build -d
+```
+
+One-time on the VM: Docker Engine + Compose plugin, a DNS A record pointing at
+the instance, firewall open on tcp:80 and tcp:443 only, and the four gitignored
+secret files copied across out-of-band (`backend/.env`,
+`backend/serviceAccountKey.json`, `ai-service/.env`, `deploy/.env`). After that
+each deploy is `git pull && docker compose up --build -d`.
+
+| Requirement | Value | Why |
+|---|---|---|
+| RAM | 4 GB minimum, 8 GB comfortable | three transformer models resident plus torch, XGBoost and SHAP |
+| Disk | 30 GB | the ai-service image is ~1.5 GB with CPU-only torch and ~1.5 GB of baked HF weights |
+| `backend` replicas | **exactly 1** | the crons live in `app.listen`; a second replica duplicates every JITAI push and crisis alert |
+| Named volumes | 3, required | per-patient models are written to local disk and are destroyed by a rebuild without them |
+
+Full walkthrough and failure modes: [`deploy/README.md`](deploy/README.md).
 
 ## 12. API Reference
 
@@ -720,14 +807,18 @@ cd mobile-app && npx expo start --dev-client   # dev build required for Health C
 | POST | `/api/chat/voice` | Sarvam STT → chat |
 | POST | `/api/passive/biometric-sync` | Wearable ingestion → stress score → XGBoost re-score |
 | GET | `/api/passive/summary/:uid` · `/biometrics/:uid` | Home stats / latest snapshot |
-| POST | `/api/cycle/log-period` · GET `/today/:uid` · `/predict/:uid` | Cycle logging + LSTM forecast |
-| POST | `/api/jitai/check` | On-demand receptivity |
+| POST | `/api/cycle/log-period` · `/log-day` · GET `/today/:uid` · `/predict/:uid` | Cycle logging (per-day, idempotent) + LSTM forecast |
+| POST | `/api/jitai/check` · `/log-response` | On-demand receptivity; intervention response capture |
+| GET | `/api/outcomes/:uid` · `/:uid/kpis` · `/cohort/all` | Measured intervention outcomes; the three problem-statement clauses as data |
+| GET | `/api/recovery/:uid` · `/:uid/history` · `/cohort/all` · POST `/goal` | Recovery score + components, residual symptoms, daily plan |
+| GET | `/api/google-health/authorize` · `/callback` · POST `/sync` | Cloud wearable path (OAuth; callback is HMAC-state protected) |
 | GET | `/api/clinician/patients` · `/patient/:uid` | Triage list / full detail (clinician role) |
 | GET | `/api/clinician/summary/:uid` | AI clinical summary (structured aggregates only) |
 | GET | `/api/clinician/alerts` · PUT `/resolve-alert/:id` · POST `/flag/:uid` | Alert workflow |
 | POST | `/api/risk/predict` · `/explain` | Direct risk scoring + SHAP explanation |
+| GET | `/api/health` | Liveness (used by the container healthcheck) |
 
-AI-service endpoints (`:8000/api/*` — internal; called only via `backend/utils/aiClient.js` in production topology): `/chat`, `/chat/summary`, `/chat/transcribe`, `/crisis/detect`, `/sentiment/analyze`, `/emotion/detect`, `/predict/risk`, `/predict/explain`, `/dropout/predict`, `/cycle/train/:uid`, `/cycle/predict/:uid`, `/jitai/receptivity`, `/jitai/train`, `/jitai/log-response`, `/anomaly/score`, `/anomaly/train`, `/anomaly/status/:uid`. Interactive docs at `http://localhost:8000/docs`.
+AI-service endpoints (`:8000/api/*` — internal; reached only through `backend/utils/aiClient.js`, and in the Docker topology not published to the host at all): `/chat`, `/chat/summary`, `/chat/transcribe`, `/crisis/detect`, `/sentiment/analyze`, `/emotion/detect`, `/predict/risk`, `/predict/explain`, `/dropout/predict`, `/cycle/train/:uid`, `/cycle/predict/:uid`, `/jitai/receptivity`, `/jitai/train`, `/jitai/log-response`, `/anomaly/score`, `/anomaly/train`, `/anomaly/status/:uid`, `/outcome/select`, `/outcome/trajectory`, `/api/health`. Interactive docs at `/docs`.
 
 </details>
 
@@ -810,10 +901,18 @@ There is no unit-test suite (hackathon scope — honest). Verification is **live
 
 | Doc | Contents |
 |---|---|
+| [`docs/NIRAL_A_TO_Z.md`](docs/NIRAL_A_TO_Z.md) | Single-source submission brief — pitch deck answers, business model, judge Q&A, feasibility triage |
 | [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Setup, THE MASTER DEMO (8 min, 5 acts), 28-demo cookbook, failure playbook |
+| [`docs/STYLE_GUIDE.md`](docs/STYLE_GUIDE.md) | Design source of truth — tokens, type, risk semantics, non-negotiable UI rules |
+| [`docs/CLINICAL_HONESTY_AUDIT.md`](docs/CLINICAL_HONESTY_AUDIT.md) | Every claim against its evidence; the three mandatory disclosures |
+| [`docs/MASTER_KNOWLEDGE.md`](docs/MASTER_KNOWLEDGE.md) | 25-chapter technical bible |
 | [`docs/NIRANTHARA_V2_MASTER_PLAN.md`](docs/NIRANTHARA_V2_MASTER_PLAN.md) | 111-feature roadmap, target architecture, DB migration, scaling, GTM |
 | [`docs/HACKATHON_STRATEGY.md`](docs/HACKATHON_STRATEGY.md) | Problem-statement decode, presentation plans, 50 judge Q&As |
-| [`CLAUDE.md`](CLAUDE.md) | Live engineering conventions and verified gotchas |
+| [`docs/REAL_WEARABLE_SETUP.md`](docs/REAL_WEARABLE_SETUP.md) | Google Health API vs Health Connect vs simulated |
+| [`deploy/README.md`](deploy/README.md) | Docker Compose production deployment and failure modes |
+
+> `CLAUDE.md` (engineering conventions and verified gotchas) is **gitignored** and
+> exists only on the maintainer's machine — it is deliberately not linked here.
 
 ## 22. Credits
 
