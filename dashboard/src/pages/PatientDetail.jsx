@@ -317,7 +317,7 @@ export default function PatientDetail() {
   // The previous export wrote at fixed Y offsets (75, 85, 110, 120+i*10), so a
   // summary longer than ~two lines ran straight through the risk-factor block
   // and off the page. This lays out with a running cursor, paginates, and
-  // follows the app palette from Build_Guide §40.
+  // follows the app palette from docs/STYLE_GUIDE.md.
   const exportPDF = () => {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
     const PAGE_W = 210, PAGE_H = 297

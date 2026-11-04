@@ -134,6 +134,37 @@ router.put('/update-profile', verifyToken, async (req, res) => {
   }
 })
 
+// POST /api/auth/push-token
+// Registers this device for patient notifications.
+//
+// This endpoint is why JITAI pushes and check-in reminders can reach a patient
+// at all. Before it existed, the mobile app fetched an Expo push token and then
+// dropped it: `update-profile` has a strict field allow-list that never
+// included a token field, and `jitaiScheduler` gates every send on a token that
+// was therefore never written. The scheduler ran, decided to intervene, and
+// silently sent nothing — for every patient, since the project began.
+//
+// Stored under BOTH names on purpose: `pushToken` is the truth going forward,
+// `fcmToken` is what existing readers (jitaiScheduler, escalationCron) look for.
+router.post('/push-token', verifyToken, async (req, res) => {
+  try {
+    const { pushToken, platform } = req.body
+    if (!pushToken || typeof pushToken !== 'string') {
+      return res.status(400).json({ error: 'pushToken is required' })
+    }
+
+    await db.collection('users').doc(req.user.uid).update({
+      pushToken,
+      fcmToken: pushToken,
+      pushPlatform: platform || 'unknown',
+      pushTokenUpdatedAt: new Date().toISOString(),
+    })
+    res.json({ message: 'Push token registered' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // PUT /api/auth/update-baseline
 // Recompute personal baseline (called by baselineService after calibration)
 router.put('/update-baseline', verifyToken, async (req, res) => {

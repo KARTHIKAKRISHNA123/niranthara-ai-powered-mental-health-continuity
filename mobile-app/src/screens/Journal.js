@@ -154,7 +154,7 @@ export default function JournalScreen({ navigation }) {
           </TouchableOpacity>
 
           <Text style={styles.mlNote}>
-            Your journal text is analysed by our NLP pipeline (IndicBERT + distilroberta) for sentiment and emotion — never read by any human.
+            Your journal text is analysed by our NLP pipeline (XLM-RoBERTa sentiment + distilroberta emotion) for sentiment and emotion — never read by any human.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

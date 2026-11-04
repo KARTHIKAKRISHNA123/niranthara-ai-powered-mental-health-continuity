@@ -40,10 +40,9 @@ async function checkEscalations() {
       if (!latestLogSnap.empty) {
         const log = latestLogSnap.docs[0].data();
         if ((log.crisisProb || 0) >= CRISIS_PROB_THRESHOLD) {
-          await _createAlert(uid, user, 'crisis_detected', 'critical',
+          if (await _createAlert(uid, user, 'crisis_detected', 'critical',
             `Crisis language detected (NLP prob: ${(log.crisisProb * 100).toFixed(0)}%). Immediate clinician review required.`
-          );
-          created++;
+          )) created++;
           continue; // Don't also create a loss-of-follow-up alert for same user
         }
       }
@@ -65,10 +64,9 @@ async function checkEscalations() {
       const daysSince = (now - new Date(lastActive)) / (1000 * 60 * 60 * 24);
 
       if (daysSince >= INACTIVITY_DAYS) {
-        await _createAlert(uid, user, 'loss_of_contact', 'high',
+        if (await _createAlert(uid, user, 'loss_of_contact', 'high',
           `High risk (${(riskScore * 100).toFixed(0)}%) and no app activity for ${Math.floor(daysSince)} days.`
-        );
-        created++;
+        )) created++;
       }
     }
 
@@ -79,7 +77,40 @@ async function checkEscalations() {
 }
 
 // ─── Helper: create Firestore alert + FCM push ───────────────────────────────
+/**
+ * Is there already an OPEN alert of this type for this patient?
+ *
+ * The 6-hour cooldown alone is not enough. A patient who can never become active
+ * again — a seeded demo account with no Firebase Auth record, or a real patient
+ * who has genuinely gone dark — re-triggers `loss_of_contact` every 6 hours
+ * forever. That produced 46 unresolved alerts and buried the two real crisis
+ * alerts the clinician actually needed to see.
+ *
+ * Standard alerting practice: do not re-page about an incident nobody has closed.
+ * Suppression ends the moment the clinician resolves the alert, so a genuinely
+ * ongoing problem still re-escalates — it just does not stack.
+ *
+ * Filtered in memory on purpose: two equality clauses plus a sort throws
+ * FAILED_PRECONDITION here (this project has no composite indexes).
+ */
+async function _hasOpenAlert(uid, type) {
+  const snap = await db.collection('clinicianAlerts')
+    .where('patientUid', '==', uid)
+    .get();
+  return snap.docs.some(d => {
+    const a = d.data();
+    return a.type === type && !a.resolved;
+  });
+}
+
 async function _createAlert(uid, user, type, severity, message) {
+  if (await _hasOpenAlert(uid, type)) {
+    // Still refresh the cooldown so the sweep does not re-check every 15 min.
+    await db.collection('users').doc(uid).update({ lastEscalated: new Date().toISOString() });
+    console.log(`[EscalationCron] suppressed duplicate ${type} for ${uid} — an unresolved alert is already open`);
+    return false;
+  }
+
   // 1. Firestore alert document — clinicianUid is REQUIRED: the dashboard and
   // /clinician/alerts both filter on it; without it the alert is invisible.
   await db.collection('clinicianAlerts').add({
@@ -116,6 +147,7 @@ async function _createAlert(uid, user, type, severity, message) {
   }
 
   console.warn(`[EscalationCron] ALERT created — uid:${uid} type:${type} severity:${severity}`);
+  return true;
 }
 
 // ─── Start cron (called from index.js) ──────────────────────────────────────

@@ -159,15 +159,19 @@ a:hover { text-decoration: underline; }
 }
 
 /* ── Logo ───────────────────────────────────────────────────────────────── */
+/* The wordmark was Cormorant Light 22px in rose-dark — elegant, but it read as
+   a caption rather than the product name, and disappeared next to the nav
+   items. Weight 600 and a larger size make it the anchor of the sidebar. */
 .logo {
   font-family:    var(--font-display);
-  font-size:      22px;
-  font-weight:    300;
-  color:          var(--rose-dark);
+  font-size:      27px;
+  font-weight:    600;
+  color:          var(--charcoal);
   margin-bottom:  var(--sp-xxl);
-  letter-spacing: 1px;
+  letter-spacing: 0.4px;
+  line-height:    1.1;
 }
-.logo span { color: var(--lavender); }
+.logo span { color: var(--rose); font-weight: 600; }
 
 /* ── Navigation items ───────────────────────────────────────────────────── */
 .nav-item {
@@ -277,6 +281,170 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.8px;
   color:          var(--warm-gray);
 }
+
+/* ── Risk summary tiles ─────────────────────────────────────────────────────
+   Each tile carries a count, a named tier and an instruction. A bare number
+   under a lowercase badge told the clinician nothing actionable in the three
+   seconds they actually spend here. The left accent bar and tinted background
+   give crisis/high visual weight WITHOUT making colour the only signal — the
+   label and hint carry the same meaning in text.                            */
+.risk-tile-grid {
+  display:               grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:                   var(--sp-lg);
+  margin-bottom:         var(--sp-xl);
+}
+@media (max-width: 900px) {
+  .risk-tile-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.risk-tile {
+  position:      relative;
+  text-align:    left;
+  padding:       var(--sp-lg) var(--sp-lg) var(--sp-lg) var(--sp-xl);
+  overflow:      hidden;
+  transition:    transform 0.15s ease, box-shadow 0.15s ease;
+}
+.risk-tile::before {
+  content:  '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width:    5px;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+.risk-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.risk-tile.crisis::before   { background: var(--alert); }
+.risk-tile.high::before     { background: var(--risk-high-color); }
+.risk-tile.moderate::before { background: var(--warning); }
+.risk-tile.low::before      { background: var(--risk-low-color); }
+
+.risk-tile.crisis   { background: var(--risk-crisis-bg); }
+.risk-tile.crisis .risk-tile-label { color: var(--warm-white); }
+.risk-tile.crisis .risk-tile-hint  { color: rgba(254,252,250,0.72); }
+.risk-tile.high     { background: var(--risk-high-bg); }
+.risk-tile.moderate { background: var(--risk-mod-bg); }
+.risk-tile.low      { background: var(--risk-low-bg); }
+
+.risk-tile .stat-number { font-size: 42px; font-weight: 500; margin-bottom: 2px; }
+
+.risk-tile-label {
+  font-family: var(--font-body);
+  font-size:   14.5px;
+  font-weight: 600;
+  color:       var(--charcoal);
+  letter-spacing: 0.1px;
+}
+.risk-tile-hint {
+  font-size:  11.5px;
+  color:      var(--warm-gray);
+  margin-top: 2px;
+}
+
+/* ── Severity distribution chart ────────────────────────────────────────── */
+.severity-row {
+  display:        grid;
+  grid-template-columns: 140px 1fr 108px;
+  align-items:    center;
+  gap:            var(--sp-md);
+  background:     transparent;
+  border:         none;
+  padding:        6px var(--sp-sm);
+  border-radius:  var(--r-sm);
+  text-align:     left;
+  width:          100%;
+  transition:     background 0.15s ease;
+}
+.severity-row:hover { background: var(--cream); }
+.severity-row:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+
+.severity-name {
+  font-size:     13px;
+  color:         var(--charcoal);
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+.severity-track {
+  height:        14px;
+  background:    var(--cream);
+  border-radius: var(--r-pill);
+  overflow:      hidden;
+  border:        1px solid rgba(44,40,38,0.05);
+}
+.severity-fill {
+  display:       block;
+  height:        100%;
+  border-radius: var(--r-pill);
+  transition:    width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Band name is the clinical fact; confidence sits under it, visibly secondary
+   and explicitly labelled, so the two can never be read as one number. */
+.severity-meta {
+  display:        flex;
+  flex-direction: column;
+  align-items:    flex-end;
+  line-height:    1.25;
+}
+.severity-band {
+  font-size:   12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.severity-conf {
+  font-size: 10.5px;
+  color:     var(--warm-gray);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .severity-row { grid-template-columns: 96px 1fr 92px; }
+}
+
+/* ── List toolbar: filter + sort chips ──────────────────────────────────── */
+.list-toolbar {
+  display:         flex;
+  justify-content: space-between;
+  align-items:     center;
+  gap:             var(--sp-lg);
+  flex-wrap:       wrap;
+  padding:         var(--sp-md) var(--sp-xl);
+  border-bottom:   1px solid var(--rose-light);
+  background:      var(--warm-white);
+}
+.filter-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.chip {
+  display:        inline-flex;
+  align-items:    center;
+  gap:            6px;
+  padding:        6px var(--sp-md);
+  border-radius:  var(--r-pill);
+  border:         1px solid var(--rose-light);
+  background:     var(--warm-white);
+  color:          var(--warm-gray);
+  font-size:      12.5px;
+  font-weight:    500;
+  transition:     background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.chip:hover { border-color: var(--rose); color: var(--charcoal); }
+.chip.active {
+  background:   var(--rose);
+  border-color: var(--rose);
+  color:        var(--warm-white);
+}
+.chip:focus-visible { outline: 2px solid var(--rose-dark); outline-offset: 2px; }
+
+.chip-count {
+  font-family:   var(--font-mono);
+  font-size:     10.5px;
+  padding:       1px 6px;
+  border-radius: var(--r-pill);
+  background:    var(--risk-high-bg);
+  color:         var(--risk-high-color);
+}
+.chip.active .chip-count { background: rgba(254,252,250,0.25); color: var(--warm-white); }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 button { cursor: pointer; font-family: var(--font-body); touch-action: manipulation; }

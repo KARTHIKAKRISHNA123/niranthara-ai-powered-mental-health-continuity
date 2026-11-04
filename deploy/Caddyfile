@@ -1,0 +1,31 @@
+# Caddy obtains and renews a Let's Encrypt certificate for {$DOMAIN}
+# automatically. Requirements: DNS A record → the VM's external IP, and GCP
+# firewall allowing tcp:80 and tcp:443.
+
+{$DOMAIN} {
+	encode gzip
+
+	# The backend, including the Google Health OAuth callback at
+	# /api/google-health/callback. That callback is unauthenticated by
+	# necessity and protected by an HMAC-signed 10-minute state parameter.
+	handle /api/* {
+		reverse_proxy backend:5000
+	}
+
+	# Everything else is the clinician SPA.
+	handle {
+		reverse_proxy dashboard:80
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "no-referrer"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

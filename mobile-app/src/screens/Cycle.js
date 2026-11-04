@@ -1,4 +1,4 @@
-// src/screens/Cycle.js — Clue-style segmented cycle ring per Build_Guide §22
+// src/screens/Cycle.js — Clue-style segmented cycle ring per docs/STYLE_GUIDE.md
 // Redesign: uniform stroke width (no active bulge), separated vulnerability bar,
 // small phase-colored day dot, clean center typography.
 

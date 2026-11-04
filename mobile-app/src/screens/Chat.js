@@ -34,9 +34,14 @@ const LOCAL_FALLBACKS = [
   "That sounds like a lot. Take your time — I'm here, and I'd like to understand more about how today has been.",
 ];
 
+// Must track the live chain in ai-service/utils/nvidia_client.py. `minimax` was
+// here long after minimaxai/minimax-m2.7 started returning HTTP 410 Gone, so the
+// backstop model would have rendered with no label at all — and a stale model
+// name on screen contradicts what we say the chain is.
 const MODEL_LABELS = [
-  { match: 'minimax', label: 'Minimax M2.7' },
-  { match: 'llama',   label: 'Llama 3.1' },
+  { match: 'llama',    label: 'Llama 3.1 8B' },
+  { match: 'nemotron', label: 'Nemotron-3 120B' },
+  { match: 'guardrail', label: 'Safety guardrail' },
 ];
 const modelLabel = (modelUsed) =>
   MODEL_LABELS.find(m => modelUsed?.includes(m.match))?.label || null;

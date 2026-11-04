@@ -9,6 +9,7 @@ const { requireClinician, requireSelfOrAssignedClinician } = require('../middlew
 const { generalLimiter } = require('../middleware/rateLimiter')
 
 const { ai } = require('../utils/aiClient')
+const notificationService = require('../services/notificationService')
 
 // GET /api/clinician/patients — All patients sorted by XGBoost risk_score
 router.get('/patients', generalLimiter, verifyToken, requireClinician, async (req, res) => {
@@ -165,16 +166,52 @@ router.get('/summary/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
 })
 
 // POST /api/clinician/flag/:uid — Manual flag
+//
+// Flagging is the ONE place the clinician reaches toward the patient rather than
+// the other way round, so the patient is notified. Being flagged and not knowing
+// is worse than not being flagged: the patient finds out at the next
+// appointment, weeks later, that their clinician had been worried all along.
+//
+// The notification never says "you have been flagged" or names a risk level —
+// that is a clinical judgement delivered by a human, not a push banner. It says
+// their clinician reached out and invites them back into the app.
 router.post('/flag/:uid', verifyToken, requireClinician, async (req, res) => {
   try {
     const { reason } = req.body
+    const uid = req.params.uid
+
     await db.collection('clinicianAlerts').add({
-      patientUid: req.params.uid, clinicianUid: req.user.uid,
+      patientUid: uid, clinicianUid: req.user.uid,
       type: 'manual_flag', riskScore: 0, crisisProb: 0,
       triggerFactors: [reason || 'Manual clinician flag'],
       resolved: false, resolvedAt: null, timestamp: new Date().toISOString()
     })
-    res.json({ message: 'Patient flagged' })
+
+    // Non-blocking: the flag itself must succeed even if delivery does not.
+    let notified = false
+    try {
+      const patientDoc = await db.collection('users').doc(uid).get()
+      const token = patientDoc.exists
+        ? (patientDoc.data().pushToken || patientDoc.data().fcmToken)
+        : null
+
+      if (token) {
+        const clinicianDoc = await db.collection('users').doc(req.user.uid).get()
+        const clinicianName = clinicianDoc.exists
+          ? (clinicianDoc.data().name || 'Your clinician')
+          : 'Your clinician'
+
+        await notificationService.sendClinicianOutreach(token, clinicianName)
+        notified = true
+        console.log(`[flag] patient ${uid} notified after flag by ${clinicianName}`)
+      } else {
+        console.warn(`[flag] patient ${uid} has no push token — flag recorded, patient not notified`)
+      }
+    } catch (pushErr) {
+      console.warn(`[flag] notification failed for ${uid}: ${pushErr.message}`)
+    }
+
+    res.json({ message: 'Patient flagged', patientNotified: notified })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

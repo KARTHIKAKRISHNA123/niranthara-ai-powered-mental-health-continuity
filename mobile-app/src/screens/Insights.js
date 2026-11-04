@@ -104,11 +104,18 @@ export default function InsightsScreen({ navigation }) {
       if (monthlyRes.data?.aggregates) {
         const agg = monthlyRes.data.aggregates;
         setSummary(agg);
-        setCurrentRisk(agg.avgRiskScore || agg.riskScore || 0);
+        // Read every name the backend has ever used for this. The screen used to
+        // read only `avgRiskScore`/`riskScore` while the route sent `avgRisk`, so
+        // currentRisk was ALWAYS 0 — a patient averaging 2.2/5 over 20 check-ins
+        // was shown "Low · 0% · You're doing well."
+        const risk = agg.currentRisk ?? agg.avgRiskScore ?? agg.avgRisk ?? agg.riskScore ?? 0;
+        setCurrentRisk(risk);
       }
 
-      if (monthlyRes.data?.moodTrend) {
-        setMoodData(monthlyRes.data.moodTrend.map(d => d.mood || d.value || 3));
+      const trend = monthlyRes.data?.moodTrend
+        ?? [...(monthlyRes.data?.logs ?? [])].reverse();
+      if (trend.length) {
+        setMoodData(trend.map(d => d.mood ?? d.moodScore ?? d.value ?? 3));
       }
 
       if (riskRes.data?.history) {

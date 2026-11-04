@@ -1,0 +1,126 @@
+# Niranthara — production topology.
+#
+#   cd deploy && docker compose up --build -d
+#
+# Build context is the repo root (`..`) for every service so the Dockerfiles can
+# reach ai-service/, backend/ and dashboard/. Only Caddy publishes ports; the
+# three app services talk over the internal `niranthara` network and are not
+# reachable from the internet.
+
+name: niranthara
+
+services:
+  # ── Reverse proxy · TLS termination ────────────────────────────────────────
+  # Android (API 28+) blocks cleartext HTTP, so the mobile app CANNOT talk to a
+  # bare http://<ip>:5000. Caddy gets a Let's Encrypt certificate automatically
+  # for $DOMAIN, which is what makes the phone work against the cloud at all.
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # certificates — losing this re-issues on boot
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+      - backend
+    networks: [niranthara]
+
+  # ── Clinician dashboard · static bundle ────────────────────────────────────
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dashboard
+      # Vite inlines these at BUILD time — they must be args, not environment.
+      args:
+        VITE_FIREBASE_API_KEY:             ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN:         ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID:          ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_STORAGE_BUCKET:      ${VITE_FIREBASE_STORAGE_BUCKET}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID:              ${VITE_FIREBASE_APP_ID}
+        VITE_API_URL:                      https://${DOMAIN}
+    restart: unless-stopped
+    networks: [niranthara]
+
+  # ── Orchestration layer ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    restart: unless-stopped
+    # DO NOT RAISE THIS. index.js starts jitaiScheduler (hourly) and
+    # startEscalationCron (15 min) inside app.listen. A second replica runs a
+    # second copy of both: duplicate JITAI pushes to patients and duplicate
+    # crisis alerts to clinicians. Scaling out requires extracting the crons to
+    # a worker first — the seam is utils/aiClient.js.
+    scale: 1
+    env_file:
+      - ../backend/.env
+    environment:
+      PORT: 5000
+      # Compose service DNS, not localhost — each container has its own loopback.
+      AI_SERVICE_URL: http://ai-service:8000
+      # Must match the URI registered in the Google Cloud console, or the
+      # Fitbit OAuth path fails at the callback.
+      GOOGLE_HEALTH_REDIRECT_URI: https://${DOMAIN}/api/google-health/callback
+    volumes:
+      # Mounted, never COPYed — an image layer is forever and `docker save`
+      # would hand someone your Firebase admin credentials.
+      - ../backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    depends_on:
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [niranthara]
+
+  # ── Intelligence layer ─────────────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ai-service
+    restart: unless-stopped
+    env_file:
+      - ../ai-service/.env
+    volumes:
+      # ALL THREE are per-user RUNTIME STATE, written on demand:
+      #   anomaly.py:127  models/user_autoencoders/{uid}.pt   (behavioural)
+      #   cycle.py:71     models/user_cycles/{uid}...         (cycle LSTM)
+      #   jitai.py:52     models/user_jitai/{uid}.pkl         (receptivity)
+      # Without these volumes every `docker compose up --build` destroys every
+      # patient's personalised models — silently, with no error. Note we mount
+      # the subdirectories, never /app/models itself: that would shadow
+      # risk_model.pkl and dropout_model.pkl baked into the image.
+      - user_autoencoders:/app/models/user_autoencoders
+      - user_cycles:/app/models/user_cycles
+      - user_jitai:/app/models/user_jitai
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # main.py warms the crisis classifier in a background executor at startup
+      # (~40s cold on CPU). A shorter start_period restart-loops the container.
+      start_period: 150s
+    networks: [niranthara]
+
+volumes:
+  user_autoencoders:
+  user_cycles:
+  user_jitai:
+  caddy_data:
+  caddy_config:
+
+networks:
+  niranthara:
+    driver: bridge

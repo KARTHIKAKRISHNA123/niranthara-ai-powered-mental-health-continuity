@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
 import { auth } from '../utils/firebase';
 import { api, postData, resolveBackend } from '../utils/api';
+import { initPatientNotifications, cancelDailyCheckInReminder } from '../services/NotificationService';
 
 const AuthContext = createContext();
 
@@ -49,8 +50,17 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.warn("Could not fetch backend profile. User might be newly registered or offline.");
         }
+
+        // Register this device for JITAI pushes and schedule the daily check-in
+        // reminder. Deliberately NOT awaited — permission prompts and the token
+        // round-trip must never delay rendering the app, and a patient who
+        // declines notifications still gets everything else.
+        initPatientNotifications(api).catch((e) =>
+          console.warn('[push] init failed:', e?.message),
+        );
       } else {
         setDbUser(null);
+        cancelDailyCheckInReminder().catch(() => {});
       }
       clearTimeout(safetyTimer);
       setLoading(false);

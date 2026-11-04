@@ -62,6 +62,7 @@ export default function SignupScreen({ navigation }) {
             <Text style={styles.label}>Full Name</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor={theme.colors.warmGray}
               placeholder="e.g. Priya Sharma"
               value={name}
               onChangeText={setName}
@@ -70,6 +71,7 @@ export default function SignupScreen({ navigation }) {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor={theme.colors.warmGray}
               placeholder="you@example.com"
               autoCapitalize="none"
               keyboardType="email-address"
@@ -80,6 +82,7 @@ export default function SignupScreen({ navigation }) {
             <Text style={styles.label}>Password</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor={theme.colors.warmGray}
               placeholder="••••••••"
               secureTextEntry
               value={password}
@@ -151,6 +154,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     fontFamily: theme.typography.body,
     fontSize: 16,
+    // See Login.js — RN's default input colour is near-white on some Android
+    // skins, which hid both the typed text and the placeholder.
+    color: theme.colors.charcoal,
     borderWidth: 1,
     borderColor: theme.colors.softGray,
     marginBottom: theme.spacing.sm,

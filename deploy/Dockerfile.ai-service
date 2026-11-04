@@ -1,0 +1,69 @@
+# ai-service — FastAPI + PyTorch + 3 HuggingFace classifiers + XGBoost/SHAP
+# Build context is the REPO ROOT:
+#   docker build -f deploy/Dockerfile.ai-service .
+
+FROM python:3.11-slim
+
+# libgomp1 is required by XGBoost; curl is used by the compose healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgomp1 curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# WORKDIR must be the ai-service root. Every model path in the code is relative
+# to it (predict.py:49 "models/risk_model.pkl", anomaly.py:127
+# "models/user_autoencoders/{uid}.pt"). A different workdir breaks all of them.
+WORKDIR /app
+
+# ── Torch, CPU wheels only ────────────────────────────────────────────────────
+# The default PyPI torch pulls ~2.5GB of CUDA libraries this project never uses
+# (inference is CPU-only, see main.py CPU pinning). Installing from the CPU
+# index first means the later requirements.txt resolve finds torch satisfied.
+RUN pip install --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cpu \
+      "torch>=2.6.0"
+
+COPY ai-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── Bake the HuggingFace models into the image ────────────────────────────────
+# ~1.5GB across sentinet/suicidality, XLM-R sentiment and emotion-distilroberta.
+# Downloading at runtime instead would re-fetch on every deploy and make the
+# first crisis check pay the load penalty. HF_HOME must be set before the
+# download so the cache lands in this layer and is found again at runtime.
+ENV HF_HOME=/opt/hf-cache \
+    TRANSFORMERS_OFFLINE=0 \
+    PYTHONUTF8=1 \
+    PYTHONUNBUFFERED=1
+
+COPY ai-service/download_models.py ./download_models.py
+RUN python download_models.py
+
+COPY ai-service/ ./
+
+# ── XGBoost models ────────────────────────────────────────────────────────────
+# risk_model.pkl / dropout_model.pkl may or may not be in the repo depending on
+# whether *.pkl is gitignored. Train only if absent — the trainers are seeded
+# (np.random.seed(42)) so the result is byte-identical either way, and this
+# makes the image correct under both policies.
+RUN if [ ! -f models/risk_model.pkl ]; then \
+      echo "[build] risk_model.pkl absent — training from seeded synthetic data" && \
+      python -m models.model_trainer ; \
+    else echo "[build] risk_model.pkl present — using committed model" ; fi \
+ && if [ ! -f models/dropout_model.pkl ]; then \
+      echo "[build] dropout_model.pkl absent — training" && \
+      python -m models.dropout_trainer ; \
+    else echo "[build] dropout_model.pkl present — using committed model" ; fi
+
+# Fail the BUILD, not the 3am demo, if a model is missing.
+RUN test -f models/risk_model.pkl || (echo "FATAL: risk_model.pkl missing after build" && exit 1)
+
+# Per-user models are runtime state on named volumes mounted at these paths.
+# Create them so they exist on a cold first boot — main.py:97 does os.listdir()
+# on user_autoencoders before anything has written to it.
+RUN mkdir -p models/user_autoencoders models/user_cycles models/user_jitai
+
+RUN useradd -m -u 10001 niranthara && chown -R niranthara:niranthara /app /opt/hf-cache
+USER niranthara
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

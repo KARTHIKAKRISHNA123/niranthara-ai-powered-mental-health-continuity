@@ -1,0 +1,33 @@
+# Build context hygiene. Without this the context is several GB — the tree
+# carries two Python venvs and four node_modules trees.
+
+**/node_modules
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.expo
+**/dist
+**/build
+
+# Never ship secrets into an image layer. serviceAccountKey.json and the .env
+# files are bind-mounted at runtime by docker-compose instead.
+**/.env
+**/.env.*
+!**/.env.example
+**/serviceAccountKey.json
+
+# Not deployable — Expo compiles to an APK, it is not a server.
+mobile-app/
+
+# Local-only and irrelevant to a build
+.git
+.github
+.vscode
+.codex
+docs/
+**/*.md
+smartwatch/
+dashboard/dist
+deploy/caddy_data
+deploy/caddy_config

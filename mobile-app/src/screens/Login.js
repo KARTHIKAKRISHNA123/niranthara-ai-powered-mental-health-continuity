@@ -45,6 +45,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor={theme.colors.warmGray}
               placeholder="you@example.com"
               autoCapitalize="none"
               keyboardType="email-address"
@@ -55,6 +56,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.label}>Password</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor={theme.colors.warmGray}
               placeholder="••••••••"
               secureTextEntry
               value={password}
@@ -133,6 +135,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     fontFamily: theme.typography.body,
     fontSize: 16,
+    // Without an explicit colour, React Native falls back to the platform
+    // default — which on several Android skins is near-white, making both the
+    // typed text and the placeholder invisible on this warm-white field.
+    color: theme.colors.charcoal,
     borderWidth: 1,
     borderColor: theme.colors.softGray,
     marginBottom: theme.spacing.sm,

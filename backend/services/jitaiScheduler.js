@@ -86,7 +86,13 @@ cron.schedule('0 * * * *', async () => {
         const jitaiRes = await ai.post(`/api/jitai/receptivity`, jitaiPayload, { timeout: 8000 })
         const result   = jitaiRes.data
 
-        if (result.shouldIntervene && user.fcmToken) {
+        // The token gate used to sit on this `if`, so a patient with no push
+        // token produced NO jitaiLogs doc at all — the intervention decision was
+        // discarded, and with it the record the outcome loop measures against.
+        // The decision is now always recorded; only DELIVERY depends on a token.
+        const pushToken = user.pushToken || user.fcmToken || null
+
+        if (result.shouldIntervene) {
           const logRef = await db.collection('jitaiLogs').add({
             uid,
             interventionType: normalizeIntervention(result.interventionType),
@@ -103,8 +109,21 @@ cron.schedule('0 * * * *', async () => {
             createdAt: now.toISOString()
           })
 
-          await notificationService.sendJITAINotification(user.fcmToken, result.interventionType, null, null)
-          await logRef.update({ notificationSent: true })
+          if (!pushToken) {
+            // Loud, because this is invisible otherwise: the scheduler runs, the
+            // model decides to intervene, and the patient is never reached.
+            console.warn(`[JITAI] uid ${uid} has no push token — intervention logged, not delivered`)
+            await logRef.update({ notificationSent: false, deliverySkipped: 'no_push_token' })
+          } else {
+            try {
+              await notificationService.sendJITAINotification(pushToken, result.interventionType, null, null)
+              await logRef.update({ notificationSent: true, deliveredAt: new Date().toISOString() })
+            } catch (pushErr) {
+              // A dead token must not abort the sweep for everyone else.
+              console.warn(`[JITAI] push failed for uid ${uid}: ${pushErr.message}`)
+              await logRef.update({ notificationSent: false, deliveryError: pushErr.message })
+            }
+          }
         }
       } catch (userErr) {
         console.warn(`[JITAI] Error for uid ${uid}:`, userErr.message)

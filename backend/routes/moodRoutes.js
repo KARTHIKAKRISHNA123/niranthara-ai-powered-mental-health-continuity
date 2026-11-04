@@ -169,7 +169,47 @@ router.get('/monthly/:uid', generalLimiter, verifyToken, requireSelfOrAssignedCl
     const snap = await db.collection('moodLogs').where('uid', '==', req.params.uid).where('createdAt', '>=', ago.toISOString()).orderBy('createdAt', 'desc').get()
     const logs = snap.docs.map(doc => { const { journalText, ...d } = doc.data(); return { id: doc.id, ...d } })
     const avg = (arr, key) => arr.length ? arr.reduce((s, l) => s + (l[key] || 0), 0) / arr.length : 0
-    res.json({ logs, aggregates: { avgMood: avg(logs, 'moodScore'), avgRisk: avg(logs, 'riskScore'), avgSleep: avg(logs, 'sleepHours'), crisisEvents: logs.filter(l => l.nlpResults?.crisisProbability > 0.85).length, totalLogs: logs.length } })
+
+    // logs are ordered createdAt DESC, so [0] is the most recent check-in.
+    // "Current risk" must be the LATEST score, never the 30-day mean — a mean
+    // hides exactly the deterioration this screen exists to surface.
+    const currentRisk = logs.length ? (logs[0].riskScore || 0) : 0
+
+    // Consecutive calendar days ending today (or yesterday — a streak is not
+    // broken until a whole day is missed).
+    const dayKey = (iso) => new Date(iso).toISOString().slice(0, 10)
+    const days = [...new Set(logs.map(l => dayKey(l.createdAt)))].sort().reverse()
+    let streakDays = 0
+    if (days.length) {
+      const today = new Date(); const cursor = new Date(today)
+      if (days[0] !== dayKey(today.toISOString())) cursor.setDate(cursor.getDate() - 1)
+      for (const d of days) {
+        if (d !== dayKey(cursor.toISOString())) break
+        streakDays++; cursor.setDate(cursor.getDate() - 1)
+      }
+    }
+
+    // Oldest → newest, so a rising line means improving mood.
+    const moodTrend = [...logs].reverse().map(l => ({
+      date: l.createdAt, mood: l.moodScore || 0, riskScore: l.riskScore || 0,
+    }))
+
+    res.json({
+      logs,
+      moodTrend,
+      aggregates: {
+        avgMood: avg(logs, 'moodScore'),
+        avgRisk: avg(logs, 'riskScore'),
+        // Alias kept because the mobile Insights screen reads this name. Dropping
+        // it silently pins the patient's risk display to 0% — that bug shipped.
+        avgRiskScore: avg(logs, 'riskScore'),
+        currentRisk,
+        streakDays,
+        avgSleep: avg(logs, 'sleepHours'),
+        crisisEvents: logs.filter(l => l.nlpResults?.crisisProbability > 0.85).length,
+        totalLogs: logs.length,
+      },
+    })
   } catch (error) { res.status(500).json({ error: error.message }) }
 })
 

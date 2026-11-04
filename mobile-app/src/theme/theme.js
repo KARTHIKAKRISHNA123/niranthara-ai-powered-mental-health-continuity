@@ -3,7 +3,7 @@
 // Never pure white. Never sharp corners. Generous whitespace. Calm motion.
 
 export const COLORS = {
-  // Brand palette — §40 Build_Guide
+  // Brand palette — docs/STYLE_GUIDE.md
   rose:           '#C97B84',
   roseLight:      '#F2D9DC',
   roseDark:       '#8B4A52',

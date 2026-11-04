@@ -153,8 +153,11 @@ function ShapNarrativeCard({ riskScore, topFactors }) {
       : riskScore >= 0.30 ? RISK_STYLES.moderate
         : RISK_STYLES.low;
 
+  // "Your system is under stress" read as though the APP were unwell — and to a
+  // patient it sounds mechanical at exactly the moment they need to feel spoken
+  // to. Address the person, name what we observed, keep it non-diagnostic.
   const headline = riskScore >= 0.80 ? 'You are not alone right now.'
-    : riskScore >= 0.60 ? 'Your system is under stress.'
+    : riskScore >= 0.60 ? 'You seem to be under a lot of strain.'
       : riskScore >= 0.30 ? 'A few signals are shifting.'
         : 'Your patterns look steady.';
 
@@ -288,7 +291,11 @@ function HealthConnectCard({ onSync }) {
       setLastSync(new Date());
       setBiometrics(result.biometrics);
       setAlertFired(result.data?.alertCreated || result.alertCreated || false);
-      if (onSync) onSync(result.data || result);
+      // Pass the biometrics up too. Without this the Home stat row keeps
+      // rendering the older `/passive` figures while the watch card shows the
+      // freshly synced ones — the same screen displaying "0 steps · 5.2h" above
+      // "2.1k steps · 7.9h", which reads as a broken app.
+      if (onSync) onSync({ ...(result.data || result), biometrics: result.biometrics });
     } else {
       setNote(result.error || 'Sync failed.');
     }
@@ -388,8 +395,12 @@ function HealthConnectCard({ onSync }) {
           </View>
         </View>
       ) : (
+        // Vendor-neutral on purpose. This used to hardcode "Da Fit", which is one
+        // specific band's companion app — wrong for every other watch, including
+        // the Fitbit this is demoed with. The real provider name renders from
+        // biometrics.provider once a sync lands.
         <Text style={[s.watchMetaSub, { marginBottom: SPACING.md }]}>
-          Da Fit  →  Health Connect  →  Niranthara
+          Your wearable  →  Health Connect  →  Niranthara
         </Text>
       )}
 
@@ -615,6 +626,17 @@ export default function HomeScreen({ navigation }) {
         <Animated.View style={entrance(anim3, 8)}>
           <HealthConnectCard onSync={(data) => {
             if (data?.riskScore) setData(prev => ({ ...prev, riskScore: data.riskScore }));
+            // Keep the stat row in step with the watch card. Absent signals stay
+            // absent — a vendor may sync only some record types, and overwriting
+            // a real figure with 0 would read as "you took no steps today".
+            const b = data?.biometrics;
+            if (b) {
+              setPassive(prev => ({
+                ...prev,
+                steps:      b.steps      != null ? b.steps      : prev.steps,
+                sleepHours: b.sleepHours != null ? b.sleepHours : prev.sleepHours,
+              }));
+            }
           }} />
         </Animated.View>
 

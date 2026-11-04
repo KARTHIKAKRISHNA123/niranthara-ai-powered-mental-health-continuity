@@ -1,0 +1,26 @@
+# backend — Node 20 / Express 5 orchestration layer
+# Build context is the REPO ROOT:
+#   docker build -f deploy/Dockerfile.backend .
+
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY backend/ ./
+
+# serviceAccountKey.json and .env are deliberately NOT copied — .dockerignore
+# excludes them. They are bind-mounted read-only by docker-compose so the
+# credentials never enter an image layer (an image layer is forever, and
+# `docker save` would hand someone your Firebase admin key).
+
+RUN useradd -m -u 10002 niranthara && chown -R niranthara:niranthara /app
+USER niranthara
+
+EXPOSE 5000
+CMD ["node", "index.js"]
